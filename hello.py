@@ -1,9 +1,7 @@
 import bot
+import command
 
 
-class HelloHandler(bot.Handler):
-    def check(self, message: bot.Message) -> bool:
-        return message.text == "!hello"
-
-    def run(self, message: bot.Message) -> str:
+class HelloHandler(command.CommandHandler):
+    def run_hello(self, _: bot.Message) -> str:
         return "Hello, world!"

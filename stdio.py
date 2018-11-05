@@ -3,6 +3,7 @@ from typing import Callable
 import bot
 import custom
 import hello
+import roulette
 
 
 class StdioConnection(bot.Connection):
@@ -19,5 +20,6 @@ if __name__ == "__main__":
     handlers = [
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
+        roulette.RouletteHandler(),
     ]
     bot.Bot("bot", [StdioConnection()], handlers).run()

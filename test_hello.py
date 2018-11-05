@@ -11,3 +11,6 @@ class HelloHandlerTest(HandlerTest):
     def test(self):
         self.assert_no_trigger("bleep bloop")
         self.assert_response("!hello", "Hello, world!")
+
+    def testExtraArgsOkay(self):
+        self.assert_response("!hello there", "Hello, world!")

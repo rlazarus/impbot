@@ -18,4 +18,7 @@ class HandlerTest(unittest.TestCase):
     def assert_response(self, input: str, output: str) -> None:
         message = bot.Message("username", input, self.reply)
         self.assertTrue(self.handler.check(message))
-        self.assertEqual(self.handler.run(message), output)
+        try:
+            self.assertEqual(self.handler.run(message), output)
+        except bot.UserError as e:
+            self.assertEqual(str(e), output)
