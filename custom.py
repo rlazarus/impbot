@@ -21,7 +21,7 @@ class Command(object):
 class CustomCommandHandler(bot.Handler):
     def __init__(self, *args, **kwargs):
         super(CustomCommandHandler, self).__init__(*args, **kwargs)
-        self.commands = {}  # type: Dict[str, Command]
+        self.commands: Dict[str, Command] = {}
 
     def check(self, message):
         if not message.text.startswith("!"):

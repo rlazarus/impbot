@@ -8,7 +8,7 @@ import bot
 class HandlerTest(unittest.TestCase):
 
     def setUp(self):
-        self.reply: Callable[[str], None] = mock.MagicMock(autospec=bot.Connection.say)
+        self.reply: Callable[[str], None] = mock.Mock()
         self.handler: bot.Handler = None
 
     def _message(self, input):
