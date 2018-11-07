@@ -19,23 +19,34 @@ class CommandHandler(bot.Handler):
     def run(self, message: bot.Message) -> str:
         parts = message.text.split(None, 1)
         command = parts[0]
+        argstring = parts[1] if len(parts) == 2 else ""
         assert command.startswith("!")
         func = getattr(self, "run_" + command[1:])
 
         # We subtract one because the first parameter is the bot.Message.
-        argcount = len(inspect.signature(func).parameters) - 1
+        params = inspect.signature(func).parameters
+        argcount = len(params) - 1
         try:
             if argcount == 0:
                 # For commands with no arguments, silently ignore any other text
                 # on the line.
                 return func(message)
             else:
-                if len(parts) == 1:
-                    # No args were provided.
-                    raise bot.UserError
-                args = parts[1].split(None, argcount - 1)
+                # Split the string argcount - 1 times, so len(args) == argcount.
+                args = argstring.split(None, argcount - 1)
                 if len(args) < argcount:
                     raise bot.UserError
+                for i, param in enumerate(list(params.values())[1:]):
+                    # If the arg needs to be converted to something other than
+                    # string, do that and replace it. If that fails, it's a
+                    # usage error.
+                    # TODO: Eventually, this won't be enough -- converting to
+                    # User requires more context than just the string.
+                    if param.annotation != str:
+                        try:
+                            args[i] = param.annotation(args[i])
+                        except ValueError:
+                            raise bot.UserError
                 return func(message, *args)
         except bot.UserError as e:
             if str(e):
