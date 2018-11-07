@@ -21,7 +21,7 @@ class RouletteHandlerTest(HandlerTest):
         randint.assert_called_with(0, 1)
 
     def testNonInt(self):
-        self.assert_response("!roulette twenty", "Usage: !roulette <points>")
+        self.assert_error("!roulette twenty", "Usage: !roulette <points>")
 
     def testNoArg(self):
-        self.assert_response("!roulette", "Usage: !roulette <points>")
+        self.assert_error("!roulette", "Usage: !roulette <points>")

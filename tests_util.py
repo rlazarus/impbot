@@ -11,14 +11,20 @@ class HandlerTest(unittest.TestCase):
         self.reply: Callable[[str], None] = mock.MagicMock(autospec=bot.Connection.say)
         self.handler: bot.Handler = None
 
+    def _message(self, input):
+        return bot.Message("username", input, self.reply)
+
     def assert_no_trigger(self, input: str) -> None:
-        message = bot.Message("username", input, self.reply)
-        self.assertFalse(self.handler.check(message))
+        self.assertFalse(self.handler.check(self._message(input)))
 
     def assert_response(self, input: str, output: str) -> None:
-        message = bot.Message("username", input, self.reply)
+        message = self._message(input)
         self.assertTrue(self.handler.check(message))
-        try:
-            self.assertEqual(self.handler.run(message), output)
-        except bot.UserError as e:
-            self.assertEqual(str(e), output)
+        self.assertEqual(self.handler.run(message), output)
+
+    def assert_error(self, input: str, output: str):
+        message = self._message(input)
+        self.assertTrue(self.handler.check(message))
+        with self.assertRaises(bot.UserError) as ar:
+            self.handler.run(message)
+        self.assertEqual(str(ar.exception), output)
