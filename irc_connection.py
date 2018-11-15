@@ -13,7 +13,7 @@ import roulette
 class IrcConnection(bot.Connection, client.SimpleIRCClient):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
                  password: Optional[str] = None) -> None:
-        super(IrcConnection, self).__init__()
+        super().__init__()
         self.host = host
         self.port = port
         self.nickname = nickname
