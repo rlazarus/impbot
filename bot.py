@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Callable, Optional, Dict
+from typing import List, NamedTuple, Callable, Optional, Dict, Sequence
 
 
 class Message(NamedTuple):
@@ -38,8 +38,8 @@ class Handler(ABC):
 
 
 class Bot:
-    def __init__(self, username: str, connections: List[Connection],
-                 handlers: List[Handler]) -> None:
+    def __init__(self, username: str, connections: Sequence[Connection],
+                 handlers: Sequence[Handler]) -> None:
         self.username = username
         assert len(connections) == 1  # for now
         self.connections = connections
@@ -47,9 +47,7 @@ class Bot:
         # Check for duplicate commands.
         commands: Dict[str, Handler] = {}
         for handler in handlers:
-            if not hasattr(handler, "commands"):
-                continue
-            for command in handler.commands:
+            for command in getattr(handler, "commands", []):
                 if command in commands:
                     raise ValueError(f"Both {type(commands[command])} and "
                                      f"{type(handler)} register '{command}'.")

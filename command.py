@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 
 import bot
 import inspect
@@ -35,7 +35,7 @@ class CommandHandler(bot.Handler):
         if argcount == 0:
             # For commands with no arguments, silently ignore any other text on
             # the line.
-            args = []
+            args: List[str] = []
         else:
             # Split the string argcount - 1 times, so len(args) == argcount.
             args = argstring.split(None, argcount - 1)
