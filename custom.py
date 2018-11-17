@@ -48,7 +48,7 @@ class CustomCommandHandler(command.CommandHandler):
         c.count += 1
         return c.response.replace("(count)", str(c.count))
 
-    def run_addcom(self, message: bot.Message, name: str, text: str) -> str:
+    def run_addcom(self, name: str, text: str) -> str:
         name = normalize(name)
         if name in self.commands:
             raise bot.UserError(f"!{name} already exists.")
@@ -57,7 +57,7 @@ class CustomCommandHandler(command.CommandHandler):
         self.commands[name] = Command(name, text)
         return f"Added !{name}."
 
-    def run_editcom(self, message: bot.Message, name: str, text: str) -> str:
+    def run_editcom(self, name: str, text: str) -> str:
         name = normalize(name)
         if name in self.commands:
             self.commands[name].response = text
@@ -66,17 +66,17 @@ class CustomCommandHandler(command.CommandHandler):
             self.commands[name] = Command(name, text)
             return f"!{name} didn't exist; added it."
 
-    def run_delcom(self, message: bot.Message, name: str) -> str:
+    def run_delcom(self, name: str) -> str:
         name = normalize(name)
         if name not in self.commands:
             raise bot.UserError(f"!{name} doesn't exist.")
         del self.commands[name]
         return f"Deleted !{name}."
 
-    def run_resetcount(self, message: bot.Message, args: str) -> str:
+    def run_resetcount(self, args: str) -> str:
         """!resetcount <command> [<count>]"""
         # TODO: Type-infer Optional parameters so this can be rolled up as
-        # def run_resetcount(..., name: str, count: Optional[int])
+        # def run_resetcount(self, name: str, count: Optional[int])
         if " " in args:
             fst, snd = args.split(" ", 1)
             if snd.isdigit():

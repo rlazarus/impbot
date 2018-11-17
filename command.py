@@ -23,44 +23,58 @@ class CommandHandler(bot.Handler):
         assert command.startswith("!")
         func = getattr(self, "run_" + command[1:])
 
-        # We subtract one because the first parameter is the bot.Message.
         params = inspect.signature(func).parameters
-        argcount = len(params) - 1
+        argtypes = [p.annotation for p in params.values()]
+        # We subtract one because the first parameter is the bot.Message.
+        argcount = len(argtypes)
+        if len(argtypes) >= 1 and argtypes[0] == bot.Message:
+            # If the function takes a Message, the argcount we're interested in
+            # is the number of parameters after it.
+            argcount -= 1
+
+        if argcount == 0:
+            # For commands with no arguments, silently ignore any other text on
+            # the line.
+            args = []
+        else:
+            # Split the string argcount - 1 times, so len(args) == argcount.
+            args = argstring.split(None, argcount - 1)
+            if len(args) < argcount:
+                raise UsageError(func)
+            for i, argtype in enumerate(argtypes[1:]):
+                # If the arg needs to be converted to something other than
+                # string, do that and replace it. If that fails, it's a usage
+                # error.
+                # TODO: Eventually, this won't be enough -- converting to User
+                # requires more context than just the string.
+                if argtype != str:
+                    try:
+                        args[i] = argtype(args[i])
+                    except ValueError:
+                        raise UsageError(func)
         try:
-            if argcount == 0:
-                # For commands with no arguments, silently ignore any other text
-                # on the line.
-                return func(message)
-            else:
-                # Split the string argcount - 1 times, so len(args) == argcount.
-                args = argstring.split(None, argcount - 1)
-                if len(args) < argcount:
-                    raise bot.UserError
-                for i, param in enumerate(list(params.values())[1:]):
-                    # If the arg needs to be converted to something other than
-                    # string, do that and replace it. If that fails, it's a
-                    # usage error.
-                    # TODO: Eventually, this won't be enough -- converting to
-                    # User requires more context than just the string.
-                    if param.annotation != str:
-                        try:
-                            args[i] = param.annotation(args[i])
-                        except ValueError:
-                            raise bot.UserError
+            if argtypes[0] == bot.Message:
                 return func(message, *args)
+            else:
+                return func(*args)
         except bot.UserError as e:
             if str(e):
                 raise e
-            raise bot.UserError("Usage: " + _usage(func))
+            raise UsageError(func)
 
 
-def _usage(func: Callable) -> str:
-    assert func.__name__.startswith("run_")
-    command = "!" + func.__name__[len("run_"):]
-    if func.__doc__:
-        return func.__doc__
-    sig = inspect.signature(func)
-    if len(sig.parameters) == 1:
-        return command
-    return (command + " "
-            + " ".join(f"<{arg}>" for arg in list(sig.parameters)[1:]))
+class UsageError(bot.UserError):
+    def __init__(self, func):
+        assert func.__name__.startswith("run_")
+        super().__init__("Usage: " + self._usage(func))
+
+    @staticmethod
+    def _usage(func: Callable) -> str:
+        if func.__doc__:
+            return func.__doc__
+        command = "!" + func.__name__[len("run_"):]
+        params = inspect.signature(func).parameters.items()
+        argusage = [f"<{k}>" for k, v in params if v.annotation != bot.Message]
+        if not argusage:
+            return command
+        return command + " " + " ".join(argusage)

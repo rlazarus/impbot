@@ -3,5 +3,5 @@ import command
 
 
 class HelloHandler(command.CommandHandler):
-    def run_hello(self, _: bot.Message) -> str:
+    def run_hello(self) -> str:
         return "Hello, world!"
