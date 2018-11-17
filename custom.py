@@ -29,7 +29,8 @@ class CustomCommandHandler(command.CommandHandler):
             return True
         if not message.text.startswith("!"):
             return False
-        return normalize(message.text.split(" ", 1)[0]) in self.custom_commands
+        name = normalize(message.text.split(None, 1)[0])
+        return name in self.custom_commands
 
     def run(self, message: bot.Message) -> Optional[str]:
         # If CommandHandler's check() passes, this is a built-in like !addcom,
@@ -37,11 +38,7 @@ class CustomCommandHandler(command.CommandHandler):
         if super().check(message):
             return super().run(message)
         # Otherwise, it's a custom command so we do our own thing.
-        if " " in message.text:
-            name, args = message.text.split(" ", 1)
-        else:
-            name, args = message.text, ""
-        name = normalize(name)
+        name = normalize(message.text.split(None, 1)[0])
         c = self.custom_commands[name]
         if not c.cooldowns.fire(message.username):
             return None
@@ -78,7 +75,7 @@ class CustomCommandHandler(command.CommandHandler):
         # TODO: Type-infer Optional parameters so this can be rolled up as
         # def run_resetcount(self, name: str, count: Optional[int])
         if " " in args:
-            fst, snd = args.split(" ", 1)
+            fst, snd = args.split(None, 1)
             if snd.isdigit():
                 name, count = fst, int(snd)
             elif fst.isdigit():
