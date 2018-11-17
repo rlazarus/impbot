@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable, List, Tuple, Optional
 
 import bot
 import inspect
@@ -9,51 +9,54 @@ class CommandHandler(bot.Handler):
         self.commands = {"!" + i[len("run_"):] for i in dir(self)
                          if i.startswith("run_") and callable(getattr(self, i))}
 
-    def check(self, message: bot.Message) -> bool:
-        first = message.text.split(None, 1)[0]
-        if not first.startswith("!"):
-            return False
-        funcname = "run_" + first[1:]
-        return hasattr(self, funcname) and callable(getattr(self, funcname))
-
-    def run(self, message: bot.Message) -> str:
+    def _func_argstring(self, message) -> Optional[Tuple[Callable, str]]:
         parts = message.text.split(None, 1)
         command = parts[0]
         argstring = parts[1] if len(parts) == 2 else ""
-        assert command.startswith("!")
-        func = getattr(self, "run_" + command[1:])
+        if not command.startswith("!"):
+            return None
+        func = getattr(self, "run_" + command[1:], None)
+        if not callable(func):
+            return None
+        return func, argstring
 
+    def check(self, message: bot.Message) -> bool:
+        return self._func_argstring(message) is not None
+
+    def run(self, message: bot.Message) -> str:
+        func, argstring = self._func_argstring(message)
         params = inspect.signature(func).parameters
         argtypes = [p.annotation for p in params.values()]
-        # We subtract one because the first parameter is the bot.Message.
-        argcount = len(argtypes)
-        if len(argtypes) >= 1 and argtypes[0] == bot.Message:
-            # If the function takes a Message, the argcount we're interested in
-            # is the number of parameters after it.
-            argcount -= 1
-
-        if argcount == 0:
+        # Optionally, the first parameter to a handler function can be special:
+        # it can take the bot.Message directly, rather than an argument parsed
+        # from the message.
+        pass_message = argtypes and argtypes[0] == bot.Message
+        if pass_message:
+            # If the function takes a Message, the args we'll parse are the
+            # parameters after it.
+            argtypes = argtypes[1:]
+        if not argtypes:
             # For commands with no arguments, silently ignore any other text on
             # the line.
             args: List[str] = []
         else:
-            # Split the string argcount - 1 times, so len(args) == argcount.
-            args = argstring.split(None, argcount - 1)
-            if len(args) < argcount:
+            # Split at most len(argtypes) - 1 times: len(args) <= len(argtypes).
+            args = argstring.split(None, len(argtypes) - 1)
+            if len(args) < len(argtypes):
                 raise UsageError(func)
-            for i, argtype in enumerate(argtypes[1:]):
+            for i, cls in enumerate(argtypes):
                 # If the arg needs to be converted to something other than
                 # string, do that and replace it. If that fails, it's a usage
                 # error.
                 # TODO: Eventually, this won't be enough -- converting to User
                 # requires more context than just the string.
-                if argtype != str:
+                if cls != str:
                     try:
-                        args[i] = argtype(args[i])
+                        args[i] = cls(args[i])
                     except ValueError:
                         raise UsageError(func)
         try:
-            if argtypes[0] == bot.Message:
+            if pass_message:
                 return func(message, *args)
             else:
                 return func(*args)
@@ -72,9 +75,7 @@ class UsageError(bot.UserError):
     def _usage(func: Callable) -> str:
         if func.__doc__:
             return func.__doc__
-        command = "!" + func.__name__[len("run_"):]
+        usage = ["!" + func.__name__[len("run_"):]]
         params = inspect.signature(func).parameters.items()
-        argusage = [f"<{k}>" for k, v in params if v.annotation != bot.Message]
-        if not argusage:
-            return command
-        return command + " " + " ".join(argusage)
+        usage.extend(f"<{k}>" for k, v in params if v.annotation != bot.Message)
+        return " ".join(usage)
