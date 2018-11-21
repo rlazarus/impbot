@@ -15,5 +15,9 @@ def set(handler: bot.Handler, key: str, value: Any) -> None:
     _db[handler.__class__.__name__, key] = value
 
 
+def unset(handler: bot.Handler, key: str) -> None:
+    del _db[handler.__class__.__name__, key]
+
+
 def exists(handler: bot.Handler, key: str) -> bool:
     return (handler.__class__.__name__, key) in _db

@@ -27,3 +27,8 @@ class DataTest(unittest.TestCase):
         bar = BarHandler()
         self.assertFalse(data.exists(bar, "testing"))
         self.assertEqual(data.get(bar, "testing"), None)
+        data.unset(foo, "testing")
+        self.assertFalse(data.exists(foo, "testing"))
+        self.assertFalse(data.exists(foo2, "testing"))
+        self.assertEqual(data.get(foo, "testing"), None)
+        self.assertEqual(data.get(foo, "testing", 42), 42)
