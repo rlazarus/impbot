@@ -2,7 +2,7 @@ import custom
 import tests_util
 
 
-class CustomCommandHandlerTest(tests_util.HandlerTest, tests_util.DataTest):
+class CustomCommandHandlerTest(tests_util.DataHandlerTest):
 
     def setUp(self):
         super().setUp()

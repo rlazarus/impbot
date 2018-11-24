@@ -6,16 +6,6 @@ import bot
 import data
 
 
-class DataTest(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        data.startup(":memory:")
-
-    def tearDown(self):
-        super().tearDown()
-        data.shutdown()
-
-
 class HandlerTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -39,3 +29,20 @@ class HandlerTest(unittest.TestCase):
         with self.assertRaises(bot.UserError) as ar:
             self.handler.run(message)
         self.assertEqual(str(ar.exception), output)
+
+
+class DataHandlerTest(HandlerTest):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(data, "_handler_classname",
+                                    self._handler_classname)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        data.startup(":memory:")
+
+    def tearDown(self):
+        super().tearDown()
+        data.shutdown()
+
+    def _handler_classname(self):
+        return self.handler.__class__.__name__

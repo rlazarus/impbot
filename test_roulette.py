@@ -5,7 +5,7 @@ import roulette
 import tests_util
 
 
-class RouletteHandlerTest(tests_util.HandlerTest, tests_util.DataTest):
+class RouletteHandlerTest(tests_util.DataHandlerTest):
 
     def setUp(self):
         super().setUp()
