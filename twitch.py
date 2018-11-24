@@ -5,6 +5,7 @@ from irc import client
 
 import bot
 import custom
+import data
 import hello
 import irc_connection
 import roulette
@@ -25,6 +26,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
+    data.startup("impbot.sqlite")
     conn = TwitchConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu")
     handlers = [
         custom.CustomCommandHandler(),
@@ -32,3 +34,4 @@ if __name__ == "__main__":
         roulette.RouletteHandler(),
     ]
     bot.Bot("bot", [conn], handlers).run()
+    data.shutdown()

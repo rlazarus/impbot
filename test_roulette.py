@@ -2,10 +2,10 @@ from unittest import mock
 
 import data
 import roulette
-from tests_util import HandlerTest
+import tests_util
 
 
-class RouletteHandlerTest(HandlerTest):
+class RouletteHandlerTest(tests_util.HandlerTest, tests_util.DataTest):
 
     def setUp(self):
         super().setUp()

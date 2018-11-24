@@ -1,4 +1,5 @@
 .*
 __pycache__
+impbot.sqlite
 secret.py
 venv

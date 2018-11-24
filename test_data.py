@@ -1,7 +1,6 @@
-import unittest
-
 import command
 import data
+import tests_util
 
 
 class FooHandler(command.CommandHandler):
@@ -12,12 +11,12 @@ class BarHandler(command.CommandHandler):
     pass
 
 
-class DataTest(unittest.TestCase):
+class DataTest(tests_util.DataTest):
     def test(self):
         foo = FooHandler()
         self.assertFalse(data.exists(foo, "testing"))
         self.assertEqual(data.get(foo, "testing"), None)
-        self.assertEqual(data.get(foo, "testing", 42), 42)
+        self.assertEqual(data.get(foo, "testing", "default"), "default")
         data.set(foo, "testing", "value")
         self.assertTrue(data.exists(foo, "testing"))
         self.assertEqual(data.get(foo, "testing"), "value")
@@ -31,4 +30,4 @@ class DataTest(unittest.TestCase):
         self.assertFalse(data.exists(foo, "testing"))
         self.assertFalse(data.exists(foo2, "testing"))
         self.assertEqual(data.get(foo, "testing"), None)
-        self.assertEqual(data.get(foo, "testing", 42), 42)
+        self.assertEqual(data.get(foo, "testing", "default"), "default")

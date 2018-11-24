@@ -28,6 +28,7 @@ class GlobalAndUserCooldowns(object):
         if user_duration is None:
             user_duration = datetime.timedelta(0)
         self.global_cd = Cooldown(global_duration)
+        self.user_duration = user_duration
         self.user_cds: Dict[str, Cooldown] = collections.defaultdict(
             lambda: Cooldown(user_duration))
 
@@ -44,3 +45,7 @@ class GlobalAndUserCooldowns(object):
         self.user_cds[user].fire()
         self.global_cd.fire()
         return True
+
+    def __repr__(self) -> str:
+        return (f"cooldown.GlobalAndUserCooldowns({self.global_cd.duration!r}, "
+                f"{self.user_duration!r})")

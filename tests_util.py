@@ -3,11 +3,22 @@ from typing import Callable
 from unittest import mock
 
 import bot
+import data
+
+
+class DataTest(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        data.startup(":memory:")
+
+    def tearDown(self):
+        super().tearDown()
+        data.shutdown()
 
 
 class HandlerTest(unittest.TestCase):
-
     def setUp(self):
+        super().setUp()
         self.reply: Callable[[str], None] = mock.Mock()
         self.handler: bot.Handler = None
 
