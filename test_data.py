@@ -17,27 +17,27 @@ class DataTest(tests_util.DataHandlerTest):
     def test(self):
         foo = FooHandler()
         self.handler = foo
-        self.assertFalse(data.exists(foo, "testing"))
-        self.assertEqual(data.get(foo, "testing"), None)
-        self.assertEqual(data.get(foo, "testing", "default"), "default")
-        data.set(foo, "testing", "value")
-        self.assertTrue(data.exists(foo, "testing"))
-        self.assertEqual(data.get(foo, "testing"), "value")
+        self.assertFalse(data.exists("testing"))
+        self.assertEqual(data.get("testing"), None)
+        self.assertEqual(data.get("testing", "default"), "default")
+        data.set("testing", "value")
+        self.assertTrue(data.exists("testing"))
+        self.assertEqual(data.get("testing"), "value")
         foo2 = FooHandler()
         self.handler = foo2
-        self.assertTrue(data.exists(foo2, "testing"))
-        self.assertEqual(data.get(foo2, "testing"), "value")
+        self.assertTrue(data.exists("testing"))
+        self.assertEqual(data.get("testing"), "value")
         bar = BarHandler()
         self.handler = bar
-        self.assertFalse(data.exists(bar, "testing"))
-        self.assertEqual(data.get(bar, "testing"), None)
+        self.assertFalse(data.exists("testing"))
+        self.assertEqual(data.get("testing"), None)
         self.handler = foo
-        data.unset(foo, "testing")
-        self.assertFalse(data.exists(foo, "testing"))
-        self.assertEqual(data.get(foo, "testing"), None)
-        self.assertEqual(data.get(foo, "testing", "default"), "default")
+        data.unset("testing")
+        self.assertFalse(data.exists("testing"))
+        self.assertEqual(data.get("testing"), None)
+        self.assertEqual(data.get("testing", "default"), "default")
         self.handler = foo2
-        self.assertFalse(data.exists(foo2, "testing"))
+        self.assertFalse(data.exists("testing"))
 
 # This doesn't extend DataHandlerTest so that _handler_classname isn't patched
 # out.

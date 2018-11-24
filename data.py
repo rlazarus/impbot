@@ -40,7 +40,7 @@ def _handler_classname() -> str:
     raise ValueError("Not called by a Handler subclass.")
 
 
-def get(handler: bot.Handler, key: str, default: str = None) -> str:
+def get(key: str, default: str = None) -> str:
     assert _conn, "data.init() not called"
     c = _conn.execute("SELECT value FROM impbot "
                       "WHERE handler_class=? AND key=?",
@@ -51,21 +51,21 @@ def get(handler: bot.Handler, key: str, default: str = None) -> str:
     return default
 
 
-def set(handler: bot.Handler, key: str, value: str) -> None:
+def set(key: str, value: str) -> None:
     assert _conn, "data.init() not called"
     _conn.execute("REPLACE INTO impbot VALUES(?,?,?)",
                   (_handler_classname(), key, value))
     _conn.commit()
 
 
-def unset(handler: bot.Handler, key: str) -> None:
+def unset(key: str) -> None:
     assert _conn, "data.init() not called"
     _conn.execute("DELETE FROM impbot WHERE handler_class=? AND key=?",
                   (_handler_classname(), key))
     _conn.commit()
 
 
-def exists(handler: bot.Handler, key: str) -> bool:
+def exists(key: str) -> bool:
     assert _conn, "data.init() not called"
     c = _conn.execute("SELECT value FROM impbot "
                       "WHERE handler_class=? AND key=?",
