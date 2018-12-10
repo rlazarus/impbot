@@ -17,6 +17,16 @@ class UserError(Exception):
     pass
 
 
+class AdminError(Exception):
+    """Something went wrong with the bot's settings.
+
+    For now, this always crashes the bot.
+    TODO: If it happens after we start up successfully, alert the bot's admins
+    but do our best to carry on.
+    """
+    pass
+
+
 class Connection(ABC):
     @abstractmethod
     def say(self, text: str) -> None:
