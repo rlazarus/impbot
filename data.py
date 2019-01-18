@@ -1,6 +1,7 @@
 import inspect
 import logging
 import sqlite3
+from typing import List, Tuple
 
 import bot
 
@@ -71,3 +72,21 @@ def exists(key: str) -> bool:
                       "WHERE handler_class=? AND key=?",
                       (_handler_classname(), key))
     return c.fetchone() is not None
+
+
+def clear_all(key_pattern: str) -> None:
+    assert _conn, "data.init() not called"
+    _conn.execute("DELETE FROM impbot WHERE HANDLER_class=? AND key LIKE ?",
+                  (_handler_classname(), key_pattern,))
+    _conn.commit()
+
+
+# TODO: This isn't the right interface -- it was added in a hurry to support a
+#  stream in progress.
+def list(key_endswith: str) -> List[Tuple[str, str]]:
+    assert _conn, "data.init() not called"
+    c = _conn.execute("SELECT key, value FROM impbot "
+                      "WHERE handler_class=?",
+                      (_handler_classname(),))
+    rows = c.fetchall()
+    return [(row[0], row[1]) for row in rows if row[0].endswith(key_endswith)]

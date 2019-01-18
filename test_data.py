@@ -20,9 +20,14 @@ class DataTest(tests_util.DataHandlerTest):
         self.assertFalse(data.exists("testing"))
         self.assertEqual(data.get("testing"), None)
         self.assertEqual(data.get("testing", "default"), "default")
+        self.assertEqual(data.list("ing"), [])
         data.set("testing", "value")
         self.assertTrue(data.exists("testing"))
         self.assertEqual(data.get("testing"), "value")
+        self.assertEqual(data.list("ing"), [("testing", "value")])
+        data.set("twosting", "another value")
+        self.assertEqual(set(data.list("ing")),
+                         {("testing", "value"), ("twosting", "another value")})
         foo2 = FooHandler()
         self.handler = foo2
         self.assertTrue(data.exists("testing"))
