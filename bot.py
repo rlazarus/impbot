@@ -69,7 +69,9 @@ class Bot:
         for handler in self.handlers:
             if handler.check(message):
                 try:
-                    message.reply(handler.run(message))
+                    response = handler.run(message)
+                    if response:
+                        message.reply(response)
                 except UserError as e:
                     message.reply(str(e))
                 return
