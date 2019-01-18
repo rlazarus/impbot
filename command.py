@@ -39,6 +39,8 @@ class CommandHandler(bot.Handler):
             # For commands with no arguments, silently ignore any other text on
             # the line.
             args: List[str] = []
+        elif argtypes == [Optional[str]]:  # TODO: Generalize this further.
+            args = [argstring if argstring else None]
         else:
             # Split at most len(argtypes) - 1 times: len(args) <= len(argtypes).
             args = argstring.split(None, len(argtypes) - 1)
