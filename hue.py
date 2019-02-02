@@ -1,6 +1,8 @@
+import hashlib
 import json
 import logging
 import random
+import re
 import string
 from datetime import timedelta
 from typing import Optional
@@ -11,6 +13,7 @@ import bot
 import command
 import cooldown
 import data
+import secret
 
 ADMINS = {"twoheadedgiant", "shrdluuu"}
 
@@ -19,10 +22,12 @@ cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 class HueHandler(command.CommandHandler):
 
-    def __init__(self, hue_username: str, hue_access_token: str):
+    def __init__(self, hue_username: str):
         super().__init__()
+        if not (data.exists("access_token") and data.exists("refresh_token")):
+            # TODO: Add a first-time setup flow. For now, they're set manually.
+            raise bot.AdminError("access_token and refresh_token not in DB")
         self.username = hue_username
-        self.access_token = hue_access_token
         self.enabled = True
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
@@ -87,9 +92,10 @@ class HueHandler(command.CommandHandler):
         if not (cache_cd.fire() or force or not data.list(" id")):
             return
 
+        access_token = data.get("access_token")
         response = requests.get(
             f"https://api.meethue.com/bridge/{self.username}/scenes",
-            headers={"Authorization": f"Bearer {self.access_token}"})
+            headers={"Authorization": f"Bearer {access_token}"})
 
         _log(response)
         if response.status_code != 200:
@@ -111,25 +117,63 @@ class HueHandler(command.CommandHandler):
         return self._action(effect="colorloop", bri=150)
 
     def _action(self, **data):
+        access_token = data.get("access_token")
         response = requests.put(
             f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
             data=json.dumps(data),
-            headers={"Authorization": f"Bearer {self.access_token}",
+            headers={"Authorization": f"Bearer {access_token}",
                      "Content-Type": "application/json"})
         _log(response)
         if response.status_code != 200:
             return "ah jeez"
 
+    def _oauth_refresh(self) -> None:
+        path = "/oauth2/refresh"
+        response = requests.post(f"https://api.meethue.com{path}")
+        _log(response, normal_status=401)
+        auth = response.headers["WWW-Authenticate"]
+        realm = re.search('realm="(.*?)"', auth).group(1)
+        nonce = re.search('nonce="(.*?)"', auth).group(1)
+
+        h1 = _md5(f"{secret.HUE_CLIENT_ID}:{realm}:{secret.HUE_CLIENT_SECRET}")
+        h2 = _md5(f"POST:{path}")
+        digest_response = _md5(f"{h1}:{nonce}:{h2}")
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization":
+                f'Digest username="{secret.HUE_CLIENT_ID}", realm="{realm}", '
+                f'nonce="{nonce}", uri="{path}", response="{digest_response}"'
+        }
+        response = requests.post(
+            f"https://api.meethue.com{path}",
+            headers=headers,
+            params={"grant_type": "refresh_token"},
+            data={"refresh_token": data.get("refresh_token")})
+        _log(response)
+        tokens = json.loads(response.text)
+        data.set("access_token", tokens["access_token"])
+        data.set("refresh_token", tokens["refresh_token"])
+
 
 def _canonicalize(name: str) -> str:
-    return ''.join(i for i in name.lower() if i in string.ascii_lowercase)
+    return "".join(i for i in name.lower() if i in string.ascii_lowercase)
 
 
-def _log(response: requests.Response) -> None:
-    level = logging.DEBUG if response.status_code == 200 else logging.ERROR
+def _log(response: requests.Response, normal_status: int = 200) -> None:
+    if response.status_code == normal_status:
+        level = logging.DEBUG
+    else:
+        level = logging.ERROR
     logging.log(level, response)
     logging.log(level, response.headers)
     logging.log(level, response.text)
+
+
+def _md5(s: str) -> str:
+    m = hashlib.md5()
+    m.update(bytes(s, 'utf-8'))
+    return m.hexdigest()
 
 
 class HueError(Exception):
