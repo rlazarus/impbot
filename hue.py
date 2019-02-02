@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import logging
@@ -92,10 +93,9 @@ class HueHandler(command.CommandHandler):
         if not (cache_cd.fire() or force or not data.list(" id")):
             return
 
-        access_token = data.get("access_token")
         response = requests.get(
             f"https://api.meethue.com/bridge/{self.username}/scenes",
-            headers={"Authorization": f"Bearer {access_token}"})
+            headers={"Authorization": f"Bearer {self._access_token()}"})
 
         _log(response)
         if response.status_code != 200:
@@ -117,15 +117,24 @@ class HueHandler(command.CommandHandler):
         return self._action(effect="colorloop", bri=150)
 
     def _action(self, **data):
-        access_token = data.get("access_token")
         response = requests.put(
             f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
             data=json.dumps(data),
-            headers={"Authorization": f"Bearer {access_token}",
+            headers={"Authorization": f"Bearer {self._access_token()}",
                      "Content-Type": "application/json"})
         _log(response)
         if response.status_code != 200:
             return "ah jeez"
+
+    def _access_token(self) -> str:
+        # First, refresh if necessary.
+        expiration_timestamp = float(data.get("access_token_expires", "0"))
+        expiration = datetime.datetime.fromtimestamp(
+            expiration_timestamp, datetime.timezone.utc)
+        if expiration <= datetime.datetime.now(datetime.timezone.utc):
+            self._oauth_refresh()
+
+        return data.get("access_token")
 
     def _oauth_refresh(self) -> None:
         path = "/oauth2/refresh"
@@ -154,6 +163,10 @@ class HueHandler(command.CommandHandler):
         tokens = json.loads(response.text)
         data.set("access_token", tokens["access_token"])
         data.set("refresh_token", tokens["refresh_token"])
+        ttl = datetime.timedelta(
+            seconds=float(tokens["access_token_expires_in"]))
+        expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
+        data.set("access_token_expires", str(expiration.timestamp()))
 
 
 def _canonicalize(name: str) -> str:
