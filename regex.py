@@ -1,15 +1,20 @@
+import collections
 import re
 import sre_compile
-from typing import Optional, Dict
+from typing import Optional, Mapping
 
 import bot
 from bot import Message
 
 
 class RegexHandler(bot.Handler):
-    def __init__(self, patterns: Dict[str, str]):
+    def __init__(self, patterns: Mapping[str, str]) -> None:
         try:
-            self.patterns = {re.compile(k): v for k, v in patterns.items()}
+            # Store the patterns in an OrderedDict so that if the input was
+            # ordered, that order is preserved. If a line matches more than one
+            # pattern, the first one wins.
+            self.patterns = collections.OrderedDict(
+                (re.compile(k), v) for k, v in patterns.items())
         except sre_compile.error as e:
             raise bot.AdminError(e)
         self._action: Optional[str] = None

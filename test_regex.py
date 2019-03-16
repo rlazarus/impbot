@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import unittest
 
 import bot
@@ -30,3 +31,13 @@ class TestRegexInteresting(tests_util.HandlerTest):
 class TestBrokenRegex(unittest.TestCase):
     def test_broken(self):
         self.assertRaises(bot.AdminError, regex.RegexHandler, {'(': ''})
+
+
+class TestPatternOrder(tests_util.HandlerTest):
+    def setUp(self):
+        super().setUp()
+        self.handler = regex.RegexHandler(
+            OrderedDict([('pattern', 'first'), ('pattern()', 'second')]))
+
+    def test_order(self):
+        self.assert_response('a line with the pattern', 'first')
