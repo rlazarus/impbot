@@ -6,7 +6,8 @@ import command
 
 
 class FooHandler(command.CommandHandler):
-    def run_foo(self): pass
+    def run_foo(self):
+        return "foo!"
 
 
 class BarHandler(command.CommandHandler):
@@ -18,10 +19,22 @@ class AnotherFooHandler(command.CommandHandler):
 
 
 class BotTest(unittest.TestCase):
+    def init(self, handlers):
+        conn: bot.Connection = mock.Mock(spec=bot.Connection)
+        return bot.Bot("", [conn], handlers)
+
     def testInit(self):
-        def init(handlers):
-            conn: bot.Connection = mock.Mock(spec=bot.Connection)
-            return bot.Bot("", [conn], handlers)
-        init([AnotherFooHandler()])
-        init([FooHandler(), BarHandler()])
-        self.assertRaises(ValueError, init, [FooHandler(), AnotherFooHandler()])
+        self.init([AnotherFooHandler()])
+        self.init([FooHandler(), BarHandler()])
+        self.assertRaises(ValueError, self.init,
+                          [FooHandler(), AnotherFooHandler()])
+
+    def testHandle(self):
+        b = self.init([FooHandler(), BarHandler()])
+        reply = mock.Mock()
+        b.handle(bot.Message("username", "!foo", reply))
+        reply.assert_called_with("foo!")
+
+        reply.reset_mock()
+        b.handle(bot.Message("username", "not !foo", reply))
+        reply.assert_not_called()
