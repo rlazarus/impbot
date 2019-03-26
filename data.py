@@ -10,7 +10,7 @@ _conn: sqlite3.Connection = None
 
 def startup(db: str) -> None:
     global _conn
-    assert _conn is None, "data.init() already called"
+    assert _conn is None, "data.startup() already called"
     _conn = sqlite3.connect(db)
     c = _conn.execute("SELECT name FROM sqlite_master "
                       "WHERE type='table' AND name='impbot'")
@@ -26,7 +26,9 @@ def startup(db: str) -> None:
 
 def shutdown() -> None:
     global _conn
-    assert _conn, "data.init() not called"
+    if _conn is None:
+        # startup() wasn't called, we don't need to do anything.
+        return
     _conn.close()
     _conn = None
 
@@ -42,7 +44,7 @@ def _handler_classname() -> str:
 
 
 def get(key: str, default: str = None) -> str:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     c = _conn.execute("SELECT value FROM impbot "
                       "WHERE handler_class=? AND key=?",
                       (_handler_classname(), key))
@@ -53,21 +55,21 @@ def get(key: str, default: str = None) -> str:
 
 
 def set(key: str, value: str) -> None:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     _conn.execute("REPLACE INTO impbot VALUES(?,?,?)",
                   (_handler_classname(), key, value))
     _conn.commit()
 
 
 def unset(key: str) -> None:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     _conn.execute("DELETE FROM impbot WHERE handler_class=? AND key=?",
                   (_handler_classname(), key))
     _conn.commit()
 
 
 def exists(key: str) -> bool:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     c = _conn.execute("SELECT value FROM impbot "
                       "WHERE handler_class=? AND key=?",
                       (_handler_classname(), key))
@@ -75,7 +77,7 @@ def exists(key: str) -> bool:
 
 
 def clear_all(key_pattern: str) -> None:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     _conn.execute("DELETE FROM impbot WHERE HANDLER_class=? AND key LIKE ?",
                   (_handler_classname(), key_pattern,))
     _conn.commit()
@@ -84,7 +86,7 @@ def clear_all(key_pattern: str) -> None:
 # TODO: This isn't the right interface -- it was added in a hurry to support a
 #  stream in progress.
 def list(key_endswith: str) -> List[Tuple[str, str]]:
-    assert _conn, "data.init() not called"
+    assert _conn, "data.startup() not called"
     c = _conn.execute("SELECT key, value FROM impbot "
                       "WHERE handler_class=?",
                       (_handler_classname(),))

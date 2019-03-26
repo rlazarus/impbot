@@ -26,12 +26,12 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    data.startup("impbot.sqlite")
     conn = TwitchConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu")
     handlers = [
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    bot.Bot("bot", [conn], handlers).run()
-    data.shutdown()
+    b = bot.Bot("bot", "impbot.sqlite", [conn], handlers)
+    b.run()
+    b.shutdown()

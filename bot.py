@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, NamedTuple, Callable, Optional, Dict, Sequence
 
+import data
+
 
 class Message(NamedTuple):
     username: str
@@ -48,11 +50,15 @@ class Handler(ABC):
 
 
 class Bot:
-    def __init__(self, username: str, connections: Sequence[Connection],
+    def __init__(self, username: str, db: Optional[str],
+                 connections: Sequence[Connection],
                  handlers: Sequence[Handler]) -> None:
         self.username = username
         assert len(connections) == 1  # for now
         self.connections = connections
+
+        if db is not None:
+            data.startup(db)
 
         # Check for duplicate commands.
         commands: Dict[str, Handler] = {}
@@ -64,6 +70,9 @@ class Bot:
                 commands[command] = handler
 
         self.handlers = handlers
+
+    def shutdown(self):
+        data.shutdown()
 
     def handle(self, message: Message) -> None:
         for handler in self.handlers:

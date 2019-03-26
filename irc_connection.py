@@ -5,7 +5,6 @@ from irc import client
 
 import bot
 import custom
-import data
 import hello
 import logging
 import roulette
@@ -49,12 +48,12 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    data.startup("impbot.sqlite")
     conn = IrcConnection("irc.foonetic.net", 6667, "impbot", "#shrdlutesting")
     handlers = [
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    bot.Bot("bot", [conn], handlers).run()
-    data.shutdown()
+    b = bot.Bot("bot", "impbot.sqlite", [conn], handlers)
+    b.run()
+    b.shutdown()

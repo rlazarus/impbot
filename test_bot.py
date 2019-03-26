@@ -11,21 +11,27 @@ class FooHandler(command.CommandHandler):
 
 
 class BarHandler(command.CommandHandler):
-    def run_bar(self): pass
+    def run_bar(self):
+        pass
 
 
 class AnotherFooHandler(command.CommandHandler):
-    def run_foo(self): pass
+    def run_foo(self):
+        pass
 
 
 class BotTest(unittest.TestCase):
     def init(self, handlers):
         conn: bot.Connection = mock.Mock(spec=bot.Connection)
-        return bot.Bot("", [conn], handlers)
+        return bot.Bot("", None, [conn], handlers)
 
     def testInit(self):
-        self.init([AnotherFooHandler()])
-        self.init([FooHandler(), BarHandler()])
+        bot = self.init([AnotherFooHandler()])
+        bot.shutdown()
+
+        bot = self.init([FooHandler(), BarHandler()])
+        bot.shutdown()
+
         self.assertRaises(ValueError, self.init,
                           [FooHandler(), AnotherFooHandler()])
 
@@ -37,4 +43,5 @@ class BotTest(unittest.TestCase):
 
         reply.reset_mock()
         b.handle(bot.Message("username", "not !foo", reply))
+        b.shutdown()
         reply.assert_not_called()
