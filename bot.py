@@ -57,10 +57,8 @@ class Handler(ABC):
 
 
 class Bot:
-    def __init__(self, username: str, db: Optional[str],
-                 connections: Sequence[Connection],
+    def __init__(self, db: Optional[str], connections: Sequence[Connection],
                  handlers: Sequence[Handler]) -> None:
-        self.username = username
         assert len(connections) == 1  # for now
         self.connections = connections
 

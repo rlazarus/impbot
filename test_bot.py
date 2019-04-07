@@ -25,7 +25,7 @@ class AnotherFooHandler(command.CommandHandler):
 class BotTest(unittest.TestCase):
     def init(self, handlers):
         conn: bot.Connection = mock.Mock(spec=bot.Connection)
-        return bot.Bot("", None, [conn], handlers)
+        return bot.Bot(None, [conn], handlers)
 
     def testInit(self):
         self.init([AnotherFooHandler()])
@@ -56,6 +56,6 @@ class BotTest(unittest.TestCase):
             def shutdown(self) -> None:
                 pass
         handler = mock.Mock(spec=bot.Handler)
-        b = bot.Bot("", None, [QuitConnection()], [handler])
+        b = bot.Bot(None, [QuitConnection()], [handler])
         b.main()
         handler.check.assert_not_called()
