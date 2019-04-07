@@ -59,7 +59,6 @@ class Handler(ABC):
 class Bot:
     def __init__(self, db: Optional[str], connections: Sequence[Connection],
                  handlers: Sequence[Handler]) -> None:
-        assert len(connections) == 1  # for now
         self.connections = connections
 
         # Check for duplicate commands.

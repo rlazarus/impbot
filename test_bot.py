@@ -1,10 +1,9 @@
 import unittest
-from typing import Callable
+from typing import Callable, Optional
 from unittest import mock
 
 import bot
 import command
-from bot import Message
 
 
 class FooHandler(command.CommandHandler):
@@ -19,6 +18,23 @@ class BarHandler(command.CommandHandler):
 
 class AnotherFooHandler(command.CommandHandler):
     def run_foo(self):
+        pass
+
+
+class OneMessageConnection(bot.Connection):
+    def __init__(self, text: Optional[str]) -> None:
+        if text is not None:
+            self.message = bot.Message("username", text, self.say)
+        else:
+            self.message = None
+
+    def say(self, text: str) -> None:
+        pass
+
+    def run(self, callback: Callable[[bot.Message], None]) -> None:
+        callback(self.message)
+
+    def shutdown(self) -> None:
         pass
 
 
@@ -46,16 +62,17 @@ class BotTest(unittest.TestCase):
         reply.assert_not_called()
 
     def testQuit(self):
-        class QuitConnection(bot.Connection):
-            def say(self, text: str) -> None:
-                pass
-
-            def run(self, callback: Callable[[Message], None]) -> None:
-                callback(None)
-
-            def shutdown(self) -> None:
-                pass
         handler = mock.Mock(spec=bot.Handler)
-        b = bot.Bot(None, [QuitConnection()], [handler])
+        b = bot.Bot(None, [OneMessageConnection(None)], [handler])
         b.main()
         handler.check.assert_not_called()
+
+
+    def testMultipleConnections(self):
+        handler = mock.Mock(spec=bot.Handler)
+        messages = ["one", "two", None]
+        b = bot.Bot(None, [OneMessageConnection(m) for m in messages], [handler])
+        b.main()
+        texts = [message.text for ((message,), _) in
+                 handler.check.call_args_list]
+        self.assertEqual(texts, messages[:-1])
