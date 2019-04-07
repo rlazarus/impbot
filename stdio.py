@@ -33,4 +33,3 @@ if __name__ == "__main__":
     ]
     b = bot.Bot("bot", "impbot.sqlite", [StdioConnection()], handlers)
     b.run()
-    b.shutdown()

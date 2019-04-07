@@ -113,26 +113,25 @@ class Bot:
 
     def run(self) -> None:
         self._handler_thread.start()
-
         conn_threads = []
         for connection in self.connections:
             t = threading.Thread(target=connection.run, args=[self.process])
             t.start()
             conn_threads.append(t)
-        try:
-            for thread in conn_threads:
-                thread.join()
-        except KeyboardInterrupt:
-            for connection in self.connections:
-                connection.shutdown()
-            graceful_exit = True
-            for thread in conn_threads:
-                thread.join(timeout=10.0)
-                if thread.is_alive():
-                    graceful_exit = False
-            if not graceful_exit:
-                sys.exit(1)
 
-    def shutdown(self):
-        self._queue.put(None)
-        self._handler_thread.join()
+        try:
+            self._handler_thread.join()
+        except KeyboardInterrupt:
+            print("Exiting...")
+            self._queue.put(None)
+            self._handler_thread.join()
+
+        for connection in self.connections:
+            connection.shutdown()
+        graceful_exit = True
+        for thread in conn_threads:
+            thread.join(timeout=10.0)
+            if thread.is_alive():
+                graceful_exit = False
+        if not graceful_exit:
+            sys.exit(1)

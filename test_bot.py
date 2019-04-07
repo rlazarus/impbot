@@ -1,8 +1,10 @@
 import unittest
+from typing import Callable
 from unittest import mock
 
 import bot
 import command
+from bot import Message
 
 
 class FooHandler(command.CommandHandler):
@@ -42,3 +44,18 @@ class BotTest(unittest.TestCase):
         reply.reset_mock()
         b.handle(bot.Message("username", "not !foo", reply))
         reply.assert_not_called()
+
+    def testQuit(self):
+        class QuitConnection(bot.Connection):
+            def say(self, text: str) -> None:
+                pass
+
+            def run(self, callback: Callable[[Message], None]) -> None:
+                callback(None)
+
+            def shutdown(self) -> None:
+                pass
+        handler = mock.Mock(spec=bot.Handler)
+        b = bot.Bot("", None, [QuitConnection()], [handler])
+        b.main()
+        handler.check.assert_not_called()

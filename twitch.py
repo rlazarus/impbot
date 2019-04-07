@@ -5,7 +5,6 @@ from irc import client
 
 import bot
 import custom
-import data
 import hello
 import irc_connection
 import roulette
@@ -34,4 +33,3 @@ if __name__ == "__main__":
     ]
     b = bot.Bot("bot", "impbot.sqlite", [conn], handlers)
     b.run()
-    b.shutdown()
