@@ -26,11 +26,9 @@ class BotTest(unittest.TestCase):
         return bot.Bot("", None, [conn], handlers)
 
     def testInit(self):
-        bot = self.init([AnotherFooHandler()])
-        bot.shutdown()
+        self.init([AnotherFooHandler()])
 
-        bot = self.init([FooHandler(), BarHandler()])
-        bot.shutdown()
+        self.init([FooHandler(), BarHandler()])
 
         self.assertRaises(ValueError, self.init,
                           [FooHandler(), AnotherFooHandler()])
@@ -43,5 +41,4 @@ class BotTest(unittest.TestCase):
 
         reply.reset_mock()
         b.handle(bot.Message("username", "not !foo", reply))
-        b.shutdown()
         reply.assert_not_called()

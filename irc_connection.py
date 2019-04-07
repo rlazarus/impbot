@@ -1,3 +1,4 @@
+import logging
 import sys
 from typing import Callable, Optional
 
@@ -6,7 +7,6 @@ from irc import client
 import bot
 import custom
 import hello
-import logging
 import roulette
 
 
@@ -29,7 +29,13 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
     def run(self, callback: Callable[[bot.Message], None]) -> None:
         self.callback = callback
         self.connect(self.host, self.port, self.nickname, self.password)
-        self.start()
+        # SimpleIRCClient.start() never returns even after disconnection, so
+        # instead of calling into it, we run this loop ourselves.
+        while self.connection.connected:
+            self.reactor.process_once(0.2)
+
+    def shutdown(self) -> None:
+        self.connection.close()
 
     # client.SimpleIRCClient overrides:
 

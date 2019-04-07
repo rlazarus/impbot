@@ -1,5 +1,8 @@
+import queue
+import sys
+import threading
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Callable, Optional, Dict, Sequence
+from typing import NamedTuple, Callable, Optional, Dict, Sequence
 
 import data
 
@@ -38,6 +41,10 @@ class Connection(ABC):
     def run(self, callback: Callable[[Message], None]) -> None:
         pass
 
+    @abstractmethod
+    def shutdown(self) -> None:
+        pass
+
 
 class Handler(ABC):
     @abstractmethod
@@ -57,9 +64,6 @@ class Bot:
         assert len(connections) == 1  # for now
         self.connections = connections
 
-        if db is not None:
-            data.startup(db)
-
         # Check for duplicate commands.
         commands: Dict[str, Handler] = {}
         for handler in handlers:
@@ -70,8 +74,30 @@ class Bot:
                 commands[command] = handler
 
         self.handlers = handlers
+        self._queue = queue.Queue()
 
-    def shutdown(self):
+        # Initialize the handler thread here, but we'll start it in run().
+        self._handler_thread = threading.Thread(target=self.handle_queue,
+                                                args=[db])
+
+    def process(self, message: Message) -> None:
+        self._queue.put(message)
+
+    def handle_queue(self, db: Optional[str]) -> None:
+        # Initialize the DB. We can't do this in __init__ because sqlite objects
+        # can't be passed between threads, and the one belonging to the data
+        # module should be available in the handler thread.
+        if db is not None:
+            data.startup(db)
+
+        while True:
+            message = self._queue.get()
+            if message is None:
+                self._queue.task_done()
+                break
+            self.handle(message)
+            self._queue.task_done()
+
         data.shutdown()
 
     def handle(self, message: Message) -> None:
@@ -86,5 +112,27 @@ class Bot:
                 return
 
     def run(self) -> None:
+        self._handler_thread.start()
+
+        conn_threads = []
         for connection in self.connections:
-            connection.run(self.handle)
+            t = threading.Thread(target=connection.run, args=[self.process])
+            t.start()
+            conn_threads.append(t)
+        try:
+            for thread in conn_threads:
+                thread.join()
+        except KeyboardInterrupt:
+            for connection in self.connections:
+                connection.shutdown()
+            graceful_exit = True
+            for thread in conn_threads:
+                thread.join(timeout=10.0)
+                if thread.is_alive():
+                    graceful_exit = False
+            if not graceful_exit:
+                sys.exit(1)
+
+    def shutdown(self):
+        self._queue.put(None)
+        self._handler_thread.join()
