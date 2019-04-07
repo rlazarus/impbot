@@ -11,6 +11,8 @@ class CommandHandler(bot.Handler):
 
     def _func_argstring(self, message) -> Optional[Tuple[Callable, str]]:
         parts = message.text.split(None, 1)
+        if not parts:
+            return None
         command = parts[0]
         argstring = parts[1] if len(parts) == 2 else ""
         if not command.startswith("!"):
