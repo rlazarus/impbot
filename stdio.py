@@ -32,4 +32,4 @@ if __name__ == "__main__":
         roulette.RouletteHandler(),
     ]
     b = bot.Bot("bot", "impbot.sqlite", [StdioConnection()], handlers)
-    b.run()
+    b.main()

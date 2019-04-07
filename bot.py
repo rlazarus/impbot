@@ -111,7 +111,7 @@ class Bot:
                     message.reply(str(e))
                 return
 
-    def run(self) -> None:
+    def main(self) -> None:
         self._handler_thread.start()
         conn_threads = []
         for connection in self.connections:
