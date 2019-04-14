@@ -1,5 +1,5 @@
 import unittest
-from typing import Callable, Optional
+from typing import Callable, Union
 from unittest import mock
 
 import bot
@@ -21,18 +21,17 @@ class AnotherFooHandler(command.CommandHandler):
         pass
 
 
-class OneMessageConnection(bot.Connection):
-    def __init__(self, text: Optional[str]) -> None:
-        if text is not None:
-            self.message = bot.Message("username", text, self.say)
-        else:
-            self.message = None
+class OneEventConnection(bot.Connection):
+    def __init__(self, event: Union[str, bot.Event]) -> None:
+        if isinstance(event, str):
+            event = bot.Message("username", event, self.say)
+        self.event = event
 
     def say(self, text: str) -> None:
         pass
 
-    def run(self, callback: Callable[[bot.Message], None]) -> None:
-        callback(self.message)
+    def run(self, callback: Callable[[bot.Event], None]) -> None:
+        callback(self.event)
 
     def shutdown(self) -> None:
         pass
@@ -63,16 +62,15 @@ class BotTest(unittest.TestCase):
 
     def testQuit(self):
         handler = mock.Mock(spec=bot.Handler)
-        b = bot.Bot(None, [OneMessageConnection(None)], [handler])
+        b = bot.Bot(None, [OneEventConnection(bot.Shutdown())], [handler])
         b.main()
         handler.check.assert_not_called()
 
-
     def testMultipleConnections(self):
         handler = mock.Mock(spec=bot.Handler)
-        messages = ["one", "two", None]
-        b = bot.Bot(None, [OneMessageConnection(m) for m in messages], [handler])
+        events = ["one", "two", bot.Shutdown()]
+        b = bot.Bot(None, [OneEventConnection(e) for e in events], [handler])
         b.main()
         texts = [message.text for ((message,), _) in
                  handler.check.call_args_list]
-        self.assertEqual(texts, messages[:-1])
+        self.assertEqual(texts, events[:-1])

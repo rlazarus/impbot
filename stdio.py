@@ -14,7 +14,7 @@ class StdioConnection(bot.Connection):
     def say(self, text: str) -> None:
         print(text)
 
-    def run(self, callback: Callable[[bot.Message], None]) -> None:
+    def run(self, callback: Callable[[bot.Event], None]) -> None:
         # Because of the way input() works, we only exit the loop after being
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():

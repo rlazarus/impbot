@@ -19,14 +19,14 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
         self.nickname = nickname
         self.channel = channel
         self.password = password
-        self.callback: Callable[[bot.Message], None] = None
+        self.callback: Callable[[bot.Event], None] = None
 
     # bot.Connection overrides:
 
     def say(self, text: str) -> None:
         self.connection.privmsg(self.channel, text)
 
-    def run(self, callback: Callable[[bot.Message], None]) -> None:
+    def run(self, callback: Callable[[bot.Event], None]) -> None:
         self.callback = callback
         self.connect(self.host, self.port, self.nickname, self.password)
         # SimpleIRCClient.start() never returns even after disconnection, so

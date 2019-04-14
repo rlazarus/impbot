@@ -2,12 +2,24 @@ import queue
 import sys
 import threading
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Callable, Optional, Dict, Sequence
+from typing import Callable, Optional, Dict, Sequence
+
+import attr
 
 import data
 
 
-class Message(NamedTuple):
+class Event:
+    def reply(self, text: str) -> None:
+        raise NotImplementedError
+
+
+class Shutdown(Event):
+    pass
+
+
+@attr.s(auto_attribs=True)
+class Message(Event):
     username: str
     text: str
     reply: Callable[[str], None]
@@ -38,7 +50,7 @@ class Connection(ABC):
         pass
 
     @abstractmethod
-    def run(self, callback: Callable[[Message], None]) -> None:
+    def run(self, callback: Callable[[Event], None]) -> None:
         pass
 
     @abstractmethod
@@ -51,11 +63,11 @@ class Handler(ABC):
         self.data = data.Namespace(type(self).__name__)
 
     @abstractmethod
-    def check(self, message: Message) -> bool:
+    def check(self, event: Event) -> bool:
         pass
 
     @abstractmethod
-    def run(self, message: Message) -> Optional[str]:
+    def run(self, event: Event) -> Optional[str]:
         pass
 
 
@@ -80,8 +92,8 @@ class Bot:
         self._handler_thread = threading.Thread(target=self.handle_queue,
                                                 args=[db])
 
-    def process(self, message: Message) -> None:
-        self._queue.put(message)
+    def process(self, event: Event) -> None:
+        self._queue.put(event)
 
     def handle_queue(self, db: Optional[str]) -> None:
         # Initialize the DB. We can't do this in __init__ because sqlite objects
@@ -91,24 +103,24 @@ class Bot:
             data.startup(db)
 
         while True:
-            message = self._queue.get()
-            if message is None:
+            event = self._queue.get()
+            if isinstance(event, Shutdown):
                 self._queue.task_done()
                 break
-            self.handle(message)
+            self.handle(event)
             self._queue.task_done()
 
         data.shutdown()
 
-    def handle(self, message: Message) -> None:
+    def handle(self, event: Event) -> None:
         for handler in self.handlers:
-            if handler.check(message):
+            if handler.check(event):
                 try:
-                    response = handler.run(message)
+                    response = handler.run(event)
                     if response:
-                        message.reply(response)
+                        event.reply(response)
                 except UserError as e:
-                    message.reply(str(e))
+                    event.reply(str(e))
                 return
 
     def main(self) -> None:
@@ -123,7 +135,7 @@ class Bot:
             self._handler_thread.join()
         except KeyboardInterrupt:
             print("Exiting...")
-            self._queue.put(None)
+            self._queue.put(Shutdown())
             self._handler_thread.join()
 
         for connection in self.connections:
