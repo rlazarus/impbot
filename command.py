@@ -5,7 +5,8 @@ import inspect
 
 
 class CommandHandler(bot.Handler):
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         self.commands = {"!" + i[len("run_"):] for i in dir(self)
                          if i.startswith("run_") and callable(getattr(self, i))}
 

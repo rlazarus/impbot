@@ -3,7 +3,6 @@ from typing import Dict, Optional
 import bot
 import command
 import cooldown
-import data
 import datetime
 
 
@@ -36,7 +35,7 @@ class CustomCommandHandler(command.CommandHandler):
         if not message.text.startswith("!"):
             return False
         name = normalize(message.text.split(None, 1)[0])
-        return data.exists(name)
+        return self.data.exists(name)
 
     def run(self, message: bot.Message) -> Optional[str]:
         # If CommandHandler's check() passes, this is a built-in like !addcom,
@@ -45,38 +44,38 @@ class CustomCommandHandler(command.CommandHandler):
             return super().run(message)
         # Otherwise, it's a custom command so we do our own thing.
         name = normalize(message.text.split(None, 1)[0])
-        c = eval(data.get(name))
+        c = eval(self.data.get(name))
         if not c.cooldowns.fire(message.username):
             return None
         c.count += 1
-        data.set(name, repr(c))
+        self.data.set(name, repr(c))
         return c.response.replace("(count)", str(c.count))
 
     def run_addcom(self, name: str, text: str) -> str:
         name = normalize(name)
-        if data.exists(name):
+        if self.data.exists(name):
             raise bot.UserError(f"!{name} already exists.")
         if hasattr(self, "run_" + name):
             raise bot.UserError(f"Can't use !{name} for a command.")
-        data.set(name, repr(Command(name, text)))
+        self.data.set(name, repr(Command(name, text)))
         return f"Added !{name}."
 
     def run_editcom(self, name: str, text: str) -> str:
         name = normalize(name)
-        if data.exists(name):
-            c = eval(data.get(name))
+        if self.data.exists(name):
+            c = eval(self.data.get(name))
             c.response = text
-            data.set(name, repr(c))
+            self.data.set(name, repr(c))
             return f"Edited !{name}."
         else:
-            data.set(name, repr(Command(name, text)))
+            self.data.set(name, repr(Command(name, text)))
             return f"!{name} didn't exist; added it."
 
     def run_delcom(self, name: str) -> str:
         name = normalize(name)
-        if not data.exists(name):
+        if not self.data.exists(name):
             raise bot.UserError(f"!{name} doesn't exist.")
-        data.unset(name)
+        self.data.unset(name)
         return f"Deleted !{name}."
 
     def run_resetcount(self, args: str) -> str:
@@ -94,9 +93,9 @@ class CustomCommandHandler(command.CommandHandler):
         else:
             name, count = args, 0
         name = normalize(name)
-        if not data.exists(name):
+        if not self.data.exists(name):
             raise bot.UserError(f"!{name} doesn't exist")
-        c = eval(data.get(name))
+        c = eval(self.data.get(name))
         c.count = count
-        data.set(name, repr(c))
+        self.data.set(name, repr(c))
         return f"Reset !{name} counter to {count}."

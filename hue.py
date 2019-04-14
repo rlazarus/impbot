@@ -13,7 +13,6 @@ import requests
 import bot
 import command
 import cooldown
-import data
 import secret
 
 ADMINS = {"twoheadedgiant", "shrdluuu"}
@@ -25,7 +24,8 @@ class HueHandler(command.CommandHandler):
 
     def __init__(self, hue_username: str):
         super().__init__()
-        if not (data.exists("access_token") and data.exists("refresh_token")):
+        if not (self.data.exists("access_token") and
+                self.data.exists("refresh_token")):
             # TODO: Add a first-time setup flow. For now, they're set manually.
             raise bot.AdminError("access_token and refresh_token not in DB")
         self.username = hue_username
@@ -44,7 +44,7 @@ class HueHandler(command.CommandHandler):
         return "THGSleepy"
 
     def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
-        Optional[str]:
+            Optional[str]:
         if not self.enabled:
             return
         if not scene:
@@ -58,19 +58,19 @@ class HueHandler(command.CommandHandler):
 
         roulette = (scene == "random")
         if roulette:
-            scene = random.choice([k for k, v in data.list(" id")])[:-3]
+            scene = random.choice([k for k, v in self.data.list(" id")])[:-3]
 
-        if not data.exists(f"{scene} id"):
+        if not self.data.exists(f"{scene} id"):
             self._maybe_fill_cache(force=True)
-        if not data.exists(f"{scene} id"):
+        if not self.data.exists(f"{scene} id"):
             return self._list_scenes()
-        scene_id = data.get(f"{scene} id")
+        scene_id = self.data.get(f"{scene} id")
         response = self._action(scene=scene_id)
         if response is not None:
             # It's an error message.
             return response
         if roulette:
-            name = data.get(f"{scene} name")
+            name = self.data.get(f"{scene} name")
             return f"How about... {name}! twoheaDogchamp"
         # Otherwise, no need to say anything.
 
@@ -84,13 +84,13 @@ class HueHandler(command.CommandHandler):
             self._maybe_fill_cache()
         except HueError:
             return "oh heck"
-        rows = [v for k, v in data.list(" name")]
+        rows = [v for k, v in self.data.list(" name")]
         rows.append("Rainbow")
         rows.sort()
         return "Scenes: " + ', '.join(rows)
 
     def _maybe_fill_cache(self, force: bool = False) -> None:
-        if not (cache_cd.fire() or force or not data.list(" id")):
+        if not (cache_cd.fire() or force or not self.data.list(" id")):
             return
 
         response = requests.get(
@@ -102,16 +102,16 @@ class HueHandler(command.CommandHandler):
             raise HueError
 
         scenes = json.loads(response.text)
-        data.clear_all("% name")
-        data.clear_all("% id")
+        self.data.clear_all("% name")
+        self.data.clear_all("% id")
         for id, fields in scenes.items():
             full_name = fields["name"]
             if not full_name.lower().startswith("bot "):
                 continue
             full_name = full_name[4:]
             canon_name = _canonicalize(full_name)
-            data.set(f"{canon_name} name", full_name)
-            data.set(f"{canon_name} id", id)
+            self.data.set(f"{canon_name} name", full_name)
+            self.data.set(f"{canon_name} id", id)
 
     def _colorloop(self) -> Optional[str]:
         return self._action(effect="colorloop", bri=150)
@@ -128,13 +128,13 @@ class HueHandler(command.CommandHandler):
 
     def _access_token(self) -> str:
         # First, refresh if necessary.
-        expiration_timestamp = float(data.get("access_token_expires", "0"))
+        expiration_timestamp = float(self.data.get("access_token_expires", "0"))
         expiration = datetime.datetime.fromtimestamp(
             expiration_timestamp, datetime.timezone.utc)
         if expiration <= datetime.datetime.now(datetime.timezone.utc):
             self._oauth_refresh()
 
-        return data.get("access_token")
+        return self.data.get("access_token")
 
     def _oauth_refresh(self) -> None:
         path = "/oauth2/refresh"
@@ -158,15 +158,15 @@ class HueHandler(command.CommandHandler):
             f"https://api.meethue.com{path}",
             headers=headers,
             params={"grant_type": "refresh_token"},
-            data={"refresh_token": data.get("refresh_token")})
+            data={"refresh_token": self.data.get("refresh_token")})
         _log(response)
         tokens = json.loads(response.text)
-        data.set("access_token", tokens["access_token"])
-        data.set("refresh_token", tokens["refresh_token"])
+        self.data.set("access_token", tokens["access_token"])
+        self.data.set("refresh_token", tokens["refresh_token"])
         ttl = datetime.timedelta(
             seconds=float(tokens["access_token_expires_in"]))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
-        data.set("access_token_expires", str(expiration.timestamp()))
+        self.data.set("access_token_expires", str(expiration.timestamp()))
 
 
 def _canonicalize(name: str) -> str:

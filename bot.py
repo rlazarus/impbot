@@ -47,6 +47,9 @@ class Connection(ABC):
 
 
 class Handler(ABC):
+    def __init__(self) -> None:
+        self.data = data.Namespace(type(self).__name__)
+
     @abstractmethod
     def check(self, message: Message) -> bool:
         pass

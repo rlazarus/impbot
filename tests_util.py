@@ -1,3 +1,4 @@
+import sqlite3
 import unittest
 from typing import Callable
 from unittest import mock
@@ -34,15 +35,18 @@ class HandlerTest(unittest.TestCase):
 class DataHandlerTest(HandlerTest):
     def setUp(self):
         super().setUp()
-        patcher = mock.patch.object(data, "_handler_classname",
-                                    self._handler_classname)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        data.startup(":memory:")
+        # We use this URI filename instead of just ":memory:" so that the
+        # in-memory database is shared between connections -- that way, when
+        # data.startup() creates the impbot table, the Handlers' connections
+        # will see it.
+        db = "file:testdb?mode=memory&cache=shared"
+        # The shared database is deleted when the last connection is closed, so
+        # we hold one open here (before data.startup, when the table is created)
+        # for the duration of the test.
+        self.conn = sqlite3.connect(db, uri=True)
+        data.startup(db)
 
     def tearDown(self):
         super().tearDown()
         data.shutdown()
-
-    def _handler_classname(self):
-        return self.handler.__class__.__name__
+        self.conn.close()
