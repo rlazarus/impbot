@@ -14,6 +14,7 @@ import bot
 import command
 import cooldown
 import secret
+import twitch
 
 ADMINS = {"twoheadedgiant", "shrdluuu"}
 
@@ -21,13 +22,8 @@ cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 
 class HueHandler(command.CommandHandler):
-
     def __init__(self, hue_username: str):
         super().__init__()
-        if not (self.data.exists("access_token") and
-                self.data.exists("refresh_token")):
-            # TODO: Add a first-time setup flow. For now, they're set manually.
-            raise bot.AdminError("access_token and refresh_token not in DB")
         self.username = hue_username
         self.enabled = True
 
@@ -127,6 +123,12 @@ class HueHandler(command.CommandHandler):
             return "ah jeez"
 
     def _access_token(self) -> str:
+        # TODO: Move this back into __init__ once data is available there.
+        if not (self.data.exists("access_token") and
+                self.data.exists("refresh_token")):
+            # TODO: Add a first-time setup flow. For now, they're set manually.
+            raise bot.AdminError("access_token and refresh_token not in DB")
+
         # First, refresh if necessary.
         expiration_timestamp = float(self.data.get("access_token_expires", "0"))
         expiration = datetime.datetime.fromtimestamp(
@@ -167,6 +169,20 @@ class HueHandler(command.CommandHandler):
             seconds=float(tokens["access_token_expires_in"]))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
         self.data.set("access_token_expires", str(expiration.timestamp()))
+
+
+# TODO: Don't depend on HueHandler here. Either fold this into that class, or
+#   factor out a common HueClient.
+class TwitchEventBlinkHandler(bot.Handler):
+    def __init__(self, hue_handler: HueHandler) -> None:
+        super().__init__()
+        self.hue_handler = hue_handler
+
+    def check(self, event: bot.Event) -> bool:
+        return isinstance(event, twitch.TwitchEvent)
+
+    def run(self, event: bot.Event) -> None:
+        self.hue_handler.run_blink()
 
 
 def _canonicalize(name: str) -> str:

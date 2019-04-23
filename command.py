@@ -24,6 +24,9 @@ class CommandHandler(bot.Handler):
         return func, argstring
 
     def check(self, message: bot.Message) -> bool:
+        # TODO: Replace this with proper type handling.
+        if not isinstance(message, bot.Message):
+            return False
         return self._func_argstring(message) is not None
 
     def run(self, message: bot.Message) -> str:
