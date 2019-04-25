@@ -14,7 +14,7 @@ import bot
 import command
 import cooldown
 import secret
-import twitch
+import twitch_event
 
 ADMINS = {"twoheadedgiant", "shrdluuu"}
 
@@ -179,7 +179,7 @@ class TwitchEventBlinkHandler(bot.Handler):
         self.hue_handler = hue_handler
 
     def check(self, event: bot.Event) -> bool:
-        return isinstance(event, twitch.TwitchEvent)
+        return isinstance(event, twitch_event.TwitchEvent)
 
     def run(self, event: bot.Event) -> None:
         self.hue_handler.run_blink()
