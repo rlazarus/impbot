@@ -1,5 +1,7 @@
 import asyncio
 import json
+import random
+import string
 from typing import Callable, Optional
 from urllib import parse
 
@@ -63,9 +65,7 @@ class TwitchEventConnection(bot.Connection):
                                   "functionality -- use TwitchChatConnection.")
 
     def run(self, callback: Callable[[bot.Event], None]) -> None:
-        if self.data.exists("access_token"):
-            self.oauth_refresh()
-        else:
+        if not self.data.exists("access_token"):
             self.oauth_authorize()
 
         # The websockets library wants to be called asynchronously, so bridge
@@ -76,31 +76,12 @@ class TwitchEventConnection(bot.Connection):
     async def run_coro(self, callback: Callable[[bot.Event], None]) -> None:
         url = "wss://pubsub-edge.twitch.tv"
         async with websockets.connect(url) as websocket:
-            request = json.dumps({
-                "type": "LISTEN",
-                "nonce": "dummy-nonce-fixme",
-                "data": {
-                    "topics": [
-                        f"channel-bits-events-v2.{self.channel_id}",
-                        f"channel-subscribe-events-v1.{self.channel_id}",
-                        # TODO: Is "commerce" donations? (Probably not -- bet we
-                        #   need a separate streamlabs connection.)
-                        f"channel-commerce-events-v1.{self.channel_id}",
-                    ],
-                    "auth_token": self.data.get("access_token"),
-                }
-            })
-            await websocket.send(request)
-
-            response = await websocket.recv()
-            body = json.loads(response)
-            print(body)
-            if body["type"] != "RESPONSE":
-                raise bot.AdminError(f"Bad pubsub response: {body}")
-            if body["error"] == "ERR_BADAUTH":
+            response = await self.listen(websocket)
+            if response["error"] == "ERR_BADAUTH":
                 self.oauth_refresh()
-                # TODO: Resend the LISTEN request instead.
-                raise bot.AdminError("ERR_BADAUTH, try again.")
+                response = await self.listen(websocket)
+                if response["error"] == "ERR_BADAUTH":
+                    raise bot.AdminError("Two BADAUTH errors, giving up.")
 
             try:
                 async for message in websocket:
@@ -109,6 +90,40 @@ class TwitchEventConnection(bot.Connection):
                     handle_message(callback, body)
             except websockets.ConnectionClosed:
                 pass
+
+    async def listen(self, websocket):
+        alphabet = string.ascii_letters + string.digits
+        nonce = "".join(random.choices(alphabet, k=30))
+
+        await websocket.send(json.dumps({
+            "type": "LISTEN",
+            "nonce": nonce,
+            "data": {
+                "topics": [
+                    f"channel-bits-events-v2.{self.channel_id}",
+                    f"channel-subscribe-events-v1.{self.channel_id}",
+                    # TODO: Is "commerce" donations? (Probably not -- bet we
+                    #   need a separate streamlabs connection.)
+                    f"channel-commerce-events-v1.{self.channel_id}",
+                ],
+                "auth_token": self.data.get("access_token"),
+            }
+        }))
+
+        # Keep listening until we get a response with the correct nonce. It's
+        # generally the first one.
+        async for message in websocket:
+            response = json.loads(message)
+            print(response)
+            if response["nonce"] == nonce:
+                break
+        else:
+            # TODO: Here and elsewhere, raise ServerError, not AdminError.
+            raise bot.AdminError("Websocket closed without response.")
+
+        if response["type"] != "RESPONSE":
+            raise bot.AdminError(f"Bad pubsub response: {response}")
+        return response
 
     def oauth_authorize(self):
         scopes = ["bits:read", "channel_subscriptions"]
