@@ -44,21 +44,10 @@ class TwitchEventConnection(bot.Connection):
     def __init__(self, streamer_username: str, redirect_uri: str):
         self.data = data.Namespace("TwitchEventConnection")
         self.streamer_username = streamer_username
-        self.channel_id = self._get_channel_id(streamer_username)
+        self.channel_id = _get_channel_id(streamer_username)
         self.redirect_uri = redirect_uri
 
         print(self.channel_id)
-
-    def _get_channel_id(self, streamer_username):
-        response = requests.get("https://api.twitch.tv/helix/users",
-                                params={"login": streamer_username},
-                                headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-        if response.status_code != 200:
-            raise bot.AdminError(response)
-        body = json.loads(response.text)
-        if not body["data"]:
-            raise bot.AdminError(f"No Twitch channel '{streamer_username}'")
-        return body["data"][0]["id"]
 
     def say(self, text: str) -> None:
         raise NotImplementedError("TwitchEventConnection doesn't have chat"
@@ -81,7 +70,7 @@ class TwitchEventConnection(bot.Connection):
                 self.oauth_refresh()
                 response = await self.listen(websocket)
                 if response["error"] == "ERR_BADAUTH":
-                    raise bot.AdminError("Two BADAUTH errors, giving up.")
+                    raise bot.ServerError("Two BADAUTH errors, giving up.")
 
             try:
                 async for message in websocket:
@@ -118,11 +107,10 @@ class TwitchEventConnection(bot.Connection):
             if response["nonce"] == nonce:
                 break
         else:
-            # TODO: Here and elsewhere, raise ServerError, not AdminError.
-            raise bot.AdminError("Websocket closed without response.")
+            raise bot.ServerError("Websocket closed without response.")
 
         if response["type"] != "RESPONSE":
-            raise bot.AdminError(f"Bad pubsub response: {response}")
+            raise bot.ServerError(f"Bad pubsub response: {response}")
         return response
 
     def oauth_authorize(self):
@@ -144,7 +132,7 @@ class TwitchEventConnection(bot.Connection):
                 "redirect_uri": self.redirect_uri,
             })
         if response.status_code != 200:
-            raise bot.AdminError(response)
+            raise bot.ServerError(response)
         body = json.loads(response.text)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
@@ -160,10 +148,10 @@ class TwitchEventConnection(bot.Connection):
                 "client_secret": secret.TWITCH_CLIENT_SECRET,
             })
         if response.status_code != 200:
-            raise bot.AdminError(response)
+            raise bot.ServerError(response)
         body = json.loads(response.text)
         if "error" in body:
-            raise bot.AdminError(body)
+            raise bot.ServerError(body)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
         print("Refresh'd!")
@@ -174,7 +162,7 @@ class TwitchEventConnection(bot.Connection):
 
 def handle_message(callback, body):
     if body["type"] != "MESSAGE":
-        raise NotImplementedError(body)
+        raise bot.ServerError(body)
     topic = body["data"]["topic"]
     msg = json.loads(body["data"]["message"])
     if "-bits-" in topic:
@@ -194,6 +182,19 @@ def handle_message(callback, body):
                 msg["sub_message"]["message"]))
     elif "-commerce-" in topic:
         raise NotImplementedError(body)
+
+
+def _get_channel_id(streamer_username):
+    response = requests.get("https://api.twitch.tv/helix/users",
+                            params={"login": streamer_username},
+                            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
+    if response.status_code != 200:
+        raise bot.ServerError(response)
+    body = json.loads(response.text)
+    if not body["data"]:
+        raise bot.AdminError(f"No Twitch channel '{streamer_username}'")
+    return body["data"][0]["id"]
+
 
 # Mapping from the strings used in the API to human-readable English names.
 SUB_PLANS = {

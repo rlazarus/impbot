@@ -44,6 +44,17 @@ class AdminError(Exception):
     pass
 
 
+class ServerError(Exception):
+    """A server we're connected to did something unexpected.
+
+    The difference between this and AdminError is that an AdminError can be
+    resolved by fixing the bot's configuration. If the server sends us an
+    "incorrect password" error, that's an AdminError, but if it hangs up on us
+    that's a ServerError.
+    """
+    pass
+
+
 class Connection(ABC):
     @abstractmethod
     def say(self, text: str) -> None:
