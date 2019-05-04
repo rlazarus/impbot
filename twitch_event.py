@@ -47,6 +47,7 @@ class TwitchEventConnection(bot.Connection):
         self.streamer_username = streamer_username
         self.channel_id = _get_channel_id(streamer_username)
         self.redirect_uri = redirect_uri
+        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
 
         logging.debug(f"Channel ID: {self.channel_id}")
 
@@ -65,17 +66,17 @@ class TwitchEventConnection(bot.Connection):
 
     async def run_coro(self, callback: Callable[[bot.Event], None]) -> None:
         url = "wss://pubsub-edge.twitch.tv"
-        async with websockets.connect(url) as websocket:
-            response = await self.listen(websocket)
+        async with websockets.connect(url, close_timeout=1) as self.websocket:
+            response = await self.listen(self.websocket)
             if response["error"] == "ERR_BADAUTH":
                 self.oauth_refresh()
-                response = await self.listen(websocket)
+                response = await self.listen(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
                     raise bot.ServerError("Two BADAUTH errors, giving up.")
 
             try:
                 logging.debug("### entering loop...")
-                async for message in websocket:
+                async for message in self.websocket:
                     logging.debug(message)
                     body = json.loads(message)
                     handle_message(callback, body)
@@ -162,7 +163,10 @@ class TwitchEventConnection(bot.Connection):
         logging.info("Twitch OAuth: Refreshed!")
 
     def shutdown(self) -> None:
-        pass
+        logging.debug("### closing...")
+        if self.websocket:
+            self.websocket.close()
+        logging.debug("### ...closed.")
 
 
 def handle_message(callback, body):
@@ -186,6 +190,8 @@ def handle_message(callback, body):
                 msg["cumulative-months"], msg["streak-months"],
                 msg["sub_message"]["message"]))
     elif "-commerce-" in topic:
+        # TODO: Fill this in if these events turn out to be donations, otherwise
+        #   delete.
         raise NotImplementedError(body)
 
 
