@@ -100,8 +100,8 @@ class Bot:
         self._queue = queue.Queue()
 
         # Initialize the handler thread here, but we'll start it in run().
-        self._handler_thread = threading.Thread(target=self.handle_queue,
-                                                args=[db])
+        self._handler_thread = threading.Thread(
+            name="Event handler", target=self.handle_queue, args=[db])
 
     def process(self, event: Event) -> None:
         self._queue.put(event)
@@ -138,7 +138,8 @@ class Bot:
         self._handler_thread.start()
         conn_threads = []
         for connection in self.connections:
-            t = threading.Thread(target=connection.run, args=[self.process])
+            t = threading.Thread(name=type(connection).__name__,
+                                 target=connection.run, args=[self.process])
             t.start()
             conn_threads.append(t)
 
