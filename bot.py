@@ -96,23 +96,20 @@ class Bot:
                                      f"{type(handler)} register '{command}'.")
                 commands[command] = handler
 
+        if db is not None:
+            data.startup(db)
+
         self.handlers = handlers
         self._queue = queue.Queue()
 
         # Initialize the handler thread here, but we'll start it in run().
         self._handler_thread = threading.Thread(
-            name="Event handler", target=self.handle_queue, args=[db])
+            name="Event handler", target=self.handle_queue)
 
     def process(self, event: Event) -> None:
         self._queue.put(event)
 
-    def handle_queue(self, db: Optional[str]) -> None:
-        # Initialize the DB. We can't do this in __init__ because sqlite objects
-        # can't be passed between threads, and the one belonging to the data
-        # module should be available in the handler thread.
-        if db is not None:
-            data.startup(db)
-
+    def handle_queue(self) -> None:
         while True:
             event = self._queue.get()
             if isinstance(event, Shutdown):
