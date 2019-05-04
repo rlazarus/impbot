@@ -47,8 +47,10 @@ class TwitchEventConnection(bot.Connection):
         self.streamer_username = streamer_username
         self.channel_id = _get_channel_id(streamer_username)
         self.redirect_uri = redirect_uri
+        self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
 
+        asyncio.set_event_loop(self.event_loop)
         logging.debug(f"Channel ID: {self.channel_id}")
 
     def say(self, text: str) -> None:
@@ -61,8 +63,7 @@ class TwitchEventConnection(bot.Connection):
 
         # The websockets library wants to be called asynchronously, so bridge
         # into async code here.
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        asyncio.get_event_loop().run_until_complete(self.run_coro(callback))
+        self.event_loop.run_until_complete(self.run_coro(callback))
 
     async def run_coro(self, callback: Callable[[bot.Event], None]) -> None:
         url = "wss://pubsub-edge.twitch.tv"
@@ -75,15 +76,12 @@ class TwitchEventConnection(bot.Connection):
                     raise bot.ServerError("Two BADAUTH errors, giving up.")
 
             try:
-                logging.debug("### entering loop...")
                 async for message in self.websocket:
                     logging.debug(message)
                     body = json.loads(message)
                     handle_message(callback, body)
             except websockets.ConnectionClosed:
-                logging.debug("### connectionclosed")
                 pass
-        logging.debug("### out!")
 
     async def listen(self, websocket):
         alphabet = string.ascii_letters + string.digits
@@ -163,10 +161,9 @@ class TwitchEventConnection(bot.Connection):
         logging.info("Twitch OAuth: Refreshed!")
 
     def shutdown(self) -> None:
-        logging.debug("### closing...")
         if self.websocket:
-            self.websocket.close()
-        logging.debug("### ...closed.")
+            asyncio.run_coroutine_threadsafe(self.websocket.close(),
+                                             self.event_loop)
 
 
 def handle_message(callback, body):
