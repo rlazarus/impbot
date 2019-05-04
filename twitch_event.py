@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import random
 import string
 from typing import Callable, Optional
@@ -47,7 +48,7 @@ class TwitchEventConnection(bot.Connection):
         self.channel_id = _get_channel_id(streamer_username)
         self.redirect_uri = redirect_uri
 
-        print(self.channel_id)
+        logging.debug(f"Channel ID: {self.channel_id}")
 
     def say(self, text: str) -> None:
         raise NotImplementedError("TwitchEventConnection doesn't have chat"
@@ -73,12 +74,15 @@ class TwitchEventConnection(bot.Connection):
                     raise bot.ServerError("Two BADAUTH errors, giving up.")
 
             try:
+                logging.debug("### entering loop...")
                 async for message in websocket:
-                    print(message)
+                    logging.debug(message)
                     body = json.loads(message)
                     handle_message(callback, body)
             except websockets.ConnectionClosed:
+                logging.debug("### connectionclosed")
                 pass
+        logging.debug("### out!")
 
     async def listen(self, websocket):
         alphabet = string.ascii_letters + string.digits
@@ -103,7 +107,7 @@ class TwitchEventConnection(bot.Connection):
         # generally the first one.
         async for message in websocket:
             response = json.loads(message)
-            print(response)
+            logging.debug(response)
             if response["nonce"] == nonce:
                 break
         else:
@@ -119,9 +123,10 @@ class TwitchEventConnection(bot.Connection):
                                   "redirect_uri": self.redirect_uri,
                                   "response_type": "code",
                                   "scope": " ".join(scopes)})
-        print(f"While logged into Twitch as {self.streamer_username}, please "
-              f"visit: https://id.twitch.tv/oauth2/authorize?{params}")
-        access_code = input("Access code: ")
+        access_code = input(
+            f"While logged into Twitch as {self.streamer_username}, please "
+            f"visit: https://id.twitch.tv/oauth2/authorize?{params}\n"
+            f"Access code: ")
         response = requests.post(
             "https://id.twitch.tv/oauth2/token",
             params={
@@ -136,7 +141,7 @@ class TwitchEventConnection(bot.Connection):
         body = json.loads(response.text)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
-        print("Auth'd!")
+        logging.info("Twitch OAuth: Authorized!")
 
     def oauth_refresh(self):
         response = requests.post(
@@ -154,7 +159,7 @@ class TwitchEventConnection(bot.Connection):
             raise bot.ServerError(body)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
-        print("Refresh'd!")
+        logging.info("Twitch OAuth: Refreshed!")
 
     def shutdown(self) -> None:
         pass

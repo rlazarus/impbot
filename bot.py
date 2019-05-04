@@ -1,3 +1,4 @@
+import logging
 import queue
 import sys
 import threading
@@ -143,7 +144,7 @@ class Bot:
         try:
             self._handler_thread.join()
         except KeyboardInterrupt:
-            print("Exiting...")
+            logging.info("Exiting...")
             self._queue.put(Shutdown())
             self._handler_thread.join()
 
