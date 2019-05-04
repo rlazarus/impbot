@@ -172,9 +172,9 @@ def handle_message(callback, body):
     topic = body["data"]["topic"]
     msg = json.loads(body["data"]["message"])
     if "-bits-" in topic:
-        data = msg["data"]
-        callback(Bits(data.get("user_name", None), data["bits_used"],
-                      data["chat_message"]))
+        msg_data = msg["data"]
+        callback(Bits(msg_data.get("user_name", None), msg_data["bits_used"],
+                      msg_data["chat_message"]))
     elif "-subscribe-" in topic:
         if "recipient_user_name" in msg:
             callback(GiftSubscription(
