@@ -45,13 +45,11 @@ class TwitchEventConnection(bot.Connection):
     def __init__(self, streamer_username: str, redirect_uri: str):
         self.data = data.Namespace("TwitchEventConnection")
         self.streamer_username = streamer_username
-        self.channel_id = _get_channel_id(streamer_username)
         self.redirect_uri = redirect_uri
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
 
         asyncio.set_event_loop(self.event_loop)
-        logging.debug(f"Channel ID: {self.channel_id}")
 
     def say(self, text: str) -> None:
         raise NotImplementedError("TwitchEventConnection doesn't have chat"
@@ -84,6 +82,8 @@ class TwitchEventConnection(bot.Connection):
                 pass
 
     async def listen(self, websocket):
+        channel_id = _get_channel_id(self.streamer_username)
+
         alphabet = string.ascii_letters + string.digits
         nonce = "".join(random.choices(alphabet, k=30))
 
@@ -92,11 +92,11 @@ class TwitchEventConnection(bot.Connection):
             "nonce": nonce,
             "data": {
                 "topics": [
-                    f"channel-bits-events-v2.{self.channel_id}",
-                    f"channel-subscribe-events-v1.{self.channel_id}",
+                    f"channel-bits-events-v2.{channel_id}",
+                    f"channel-subscribe-events-v1.{channel_id}",
                     # TODO: Is "commerce" donations? (Probably not -- bet we
                     #   need a separate streamlabs connection.)
-                    f"channel-commerce-events-v1.{self.channel_id}",
+                    f"channel-commerce-events-v1.{channel_id}",
                 ],
                 "auth_token": self.data.get("access_token"),
             }
