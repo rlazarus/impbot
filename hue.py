@@ -13,6 +13,7 @@ import requests
 import bot
 import command
 import cooldown
+import data
 import secret
 import twitch_event
 
@@ -22,9 +23,10 @@ cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 
 class HueHandler(command.CommandHandler):
-    def __init__(self, hue_username: str):
+    def __init__(self, hue_username: str) -> None:
         super().__init__()
-        self.username = hue_username
+        self.hue_client = HueClient(hue_username)
+        # TODO: Move "enabled" into the DB, so it persists across restarts.
         self.enabled = True
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
@@ -44,24 +46,19 @@ class HueHandler(command.CommandHandler):
         if not self.enabled:
             return
         if not scene:
-            return self._list_scenes()
+            return self.hue_client.list_scenes()
 
         scene = _canonicalize(scene)
         if scene == "rainbow":
-            return self._colorloop()
+            return self.hue_client.colorloop()
         if scene == "off" and message.username.lower() == "jaccabre":
             return "hi Jacca twoheaDogchamp"
 
         roulette = (scene == "random")
         if roulette:
-            scene = random.choice([k for k, v in self.data.list(" id")])[:-3]
+            scene = self.hue_client.random_scene()
 
-        if not self.data.exists(f"{scene} id"):
-            self._maybe_fill_cache(force=True)
-        if not self.data.exists(f"{scene} id"):
-            return self._list_scenes()
-        scene_id = self.data.get(f"{scene} id")
-        response = self._action(scene=scene_id)
+        response = self.hue_client.set_scene(scene)
         if response is not None:
             # It's an error message.
             return response
@@ -73,9 +70,34 @@ class HueHandler(command.CommandHandler):
     def run_blink(self) -> Optional[str]:
         if not self.enabled:
             return
-        return self._action(alert="select")
+        return self.hue_client.blink()
 
-    def _list_scenes(self) -> str:
+
+class TwitchEventBlinkHandler(bot.Handler):
+    def __init__(self, hue_handler: HueHandler) -> None:
+        # TODO: Break the dependency on HueHandler -- right now HueHandler
+        #   instantiates the HueClient, but both handlers should depend directly
+        #   on HueClient instead.
+        super().__init__()
+        self.hue_handler = hue_handler
+
+    def check(self, event: bot.Event) -> bool:
+        return (isinstance(event, twitch_event.TwitchEvent) and
+                self.hue_handler.enabled)
+
+    def run(self, event: bot.Event) -> None:
+        self.hue_handler.hue_client.blink()
+
+
+class HueClient:
+    def __init__(self, username: str):
+        # TODO: The data is still in a HueHandler namespace from when this code
+        #   was part of that class. Migrate it in the DB to a new namespace
+        #   HueClient.
+        self.data = data.Namespace("HueHandler")
+        self.username = username
+
+    def list_scenes(self) -> str:
         try:
             self._maybe_fill_cache()
         except HueError:
@@ -84,6 +106,36 @@ class HueHandler(command.CommandHandler):
         rows.append("Rainbow")
         rows.sort()
         return "Scenes: " + ', '.join(rows)
+
+    def random_scene(self) -> str:
+        return random.choice([k for k, v in self.data.list(" id")])[:-3]
+
+    def set_scene(self, scene: str) -> Optional[str]:
+        if not self.data.exists(f"{scene} id"):
+            try:
+                self._maybe_fill_cache(force=True)
+            except HueError:
+                return "oof yikes"
+        if not self.data.exists(f"{scene} id"):
+            return self.list_scenes()
+        scene_id = self.data.get(f"{scene} id")
+        return self._action(scene=scene_id)
+
+    def colorloop(self) -> Optional[str]:
+        return self._action(effect="colorloop", bri=150)
+
+    def blink(self) -> Optional[str]:
+        return self._action(alert="select")
+
+    def _action(self, **body):
+        response = requests.put(
+            f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
+            data=json.dumps(body),
+            headers={"Authorization": f"Bearer {self._access_token()}",
+                     "Content-Type": "application/json"})
+        _log(response)
+        if response.status_code != 200:
+            return "ah jeez"
 
     def _maybe_fill_cache(self, force: bool = False) -> None:
         if not (cache_cd.fire() or force or not self.data.list(" id")):
@@ -109,19 +161,6 @@ class HueHandler(command.CommandHandler):
             self.data.set(f"{canon_name} name", full_name)
             self.data.set(f"{canon_name} id", id)
 
-    def _colorloop(self) -> Optional[str]:
-        return self._action(effect="colorloop", bri=150)
-
-    def _action(self, **data):
-        response = requests.put(
-            f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
-            data=json.dumps(data),
-            headers={"Authorization": f"Bearer {self._access_token()}",
-                     "Content-Type": "application/json"})
-        _log(response)
-        if response.status_code != 200:
-            return "ah jeez"
-
     def _access_token(self) -> str:
         # TODO: Move this back into __init__ once data is available there.
         if not (self.data.exists("access_token") and
@@ -143,8 +182,13 @@ class HueHandler(command.CommandHandler):
         response = requests.post(f"https://api.meethue.com{path}")
         _log(response, normal_status=401)
         auth = response.headers["WWW-Authenticate"]
-        realm = re.search('realm="(.*?)"', auth).group(1)
-        nonce = re.search('nonce="(.*?)"', auth).group(1)
+        realm_match = re.search('realm="(.*?)"', auth)
+        nonce_match = re.search('nonce="(.*?)"', auth)
+        if not realm_match or not nonce_match:
+            logging.error(f"Bad OAuth refresh response: {response}")
+            raise HueError
+        realm = realm_match.group(1)
+        nonce = nonce_match.group(1)
 
         h1 = _md5(f"{secret.HUE_CLIENT_ID}:{realm}:{secret.HUE_CLIENT_SECRET}")
         h2 = _md5(f"POST:{path}")
@@ -169,20 +213,6 @@ class HueHandler(command.CommandHandler):
             seconds=float(tokens["access_token_expires_in"]))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
         self.data.set("access_token_expires", str(expiration.timestamp()))
-
-
-# TODO: Don't depend on HueHandler here. Either fold this into that class, or
-#   factor out a common HueClient.
-class TwitchEventBlinkHandler(bot.Handler):
-    def __init__(self, hue_handler: HueHandler) -> None:
-        super().__init__()
-        self.hue_handler = hue_handler
-
-    def check(self, event: bot.Event) -> bool:
-        return isinstance(event, twitch_event.TwitchEvent)
-
-    def run(self, event: bot.Event) -> None:
-        self.hue_handler.run_blink()
 
 
 def _canonicalize(name: str) -> str:
