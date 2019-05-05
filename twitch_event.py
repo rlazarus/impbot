@@ -3,7 +3,7 @@ import json
 import logging
 import random
 import string
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict, Any
 from urllib import parse
 
 import attr
@@ -42,7 +42,7 @@ class GiftSubscription(Subscription):
 
 
 class TwitchEventConnection(bot.Connection):
-    def __init__(self, streamer_username: str, redirect_uri: str):
+    def __init__(self, streamer_username: str, redirect_uri: str) -> None:
         self.data = data.Namespace("TwitchEventConnection")
         self.streamer_username = streamer_username
         self.redirect_uri = redirect_uri
@@ -66,26 +66,24 @@ class TwitchEventConnection(bot.Connection):
     async def run_coro(self, callback: Callable[[bot.Event], None]) -> None:
         url = "wss://pubsub-edge.twitch.tv"
         async with websockets.connect(url, close_timeout=1) as self.websocket:
-            response = await self.listen(self.websocket)
+            response = await self.subscribe(self.websocket)
             if response["error"] == "ERR_BADAUTH":
                 self.oauth_refresh()
-                response = await self.listen(self.websocket)
+                response = await self.subscribe(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
                     raise bot.ServerError("Two BADAUTH errors, giving up.")
 
             try:
                 async for message in self.websocket:
                     logging.debug(message)
-                    body = json.loads(message)
-                    handle_message(callback, body)
+                    handle_message(callback, json.loads(message))
             except websockets.ConnectionClosed:
                 pass
 
-    async def listen(self, websocket):
+    async def subscribe(self, websocket: websockets.WebSocketClientProtocol) \
+            -> Dict[str, str]:
         channel_id = _get_channel_id(self.streamer_username)
-
-        alphabet = string.ascii_letters + string.digits
-        nonce = "".join(random.choices(alphabet, k=30))
+        nonce = _nonce()
 
         await websocket.send(json.dumps({
             "type": "LISTEN",
@@ -116,7 +114,12 @@ class TwitchEventConnection(bot.Connection):
             raise bot.ServerError(f"Bad pubsub response: {response}")
         return response
 
-    def oauth_authorize(self):
+    def oauth_authorize(self) -> None:
+        # TODO: Replace this with a proper authorization flow, which requires a
+        #   persistent web service shared by all Impbot installations -- that
+        #   service should be the host for the OAuth redirect URI, and should
+        #   hold the Twitch client secret. Without that service, the access
+        #   code has to be fished out of HTTP logs and entered by hand.
         scopes = ["bits:read", "channel_subscriptions"]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": self.redirect_uri,
@@ -126,30 +129,23 @@ class TwitchEventConnection(bot.Connection):
             f"While logged into Twitch as {self.streamer_username}, please "
             f"visit: https://id.twitch.tv/oauth2/authorize?{params}\n"
             f"Access code: ")
-        response = requests.post(
-            "https://id.twitch.tv/oauth2/token",
-            params={
-                "client_id": secret.TWITCH_CLIENT_ID,
-                "client_secret": secret.TWITCH_CLIENT_SECRET,
-                "code": access_code,
-                "grant_type": "authorization_code",
-                "redirect_uri": self.redirect_uri,
-            })
-        if response.status_code != 200:
-            raise bot.ServerError(response)
-        body = json.loads(response.text)
-        self.data.set("access_token", body["access_token"])
-        self.data.set("refresh_token", body["refresh_token"])
+        self._oauth_fetch({"grant_type": "authorization_code",
+                           "code": access_code,
+                           "redirect_uri": self.redirect_uri})
         logging.info("Twitch OAuth: Authorized!")
 
-    def oauth_refresh(self):
+    def oauth_refresh(self) -> None:
+        self._oauth_fetch({"grant_type": "refresh_token",
+                           "refresh_token": self.data.get("refresh_token")})
+        logging.info("Twitch OAuth: Refreshed!")
+
+    def _oauth_fetch(self, params: Dict[str, str]) -> None:
         response = requests.post(
             "https://id.twitch.tv/oauth2/token",
             params={
-                "grant_type": "refresh_token",
-                "refresh_token": self.data.get("refresh_token"),
                 "client_id": secret.TWITCH_CLIENT_ID,
                 "client_secret": secret.TWITCH_CLIENT_SECRET,
+                **params
             })
         if response.status_code != 200:
             raise bot.ServerError(response)
@@ -158,7 +154,6 @@ class TwitchEventConnection(bot.Connection):
             raise bot.ServerError(body)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
-        logging.info("Twitch OAuth: Refreshed!")
 
     def shutdown(self) -> None:
         if self.websocket:
@@ -166,7 +161,7 @@ class TwitchEventConnection(bot.Connection):
                                              self.event_loop)
 
 
-def handle_message(callback, body):
+def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
     if body["type"] != "MESSAGE":
         raise bot.ServerError(body)
     topic = body["data"]["topic"]
@@ -192,7 +187,7 @@ def handle_message(callback, body):
         raise NotImplementedError(body)
 
 
-def _get_channel_id(streamer_username):
+def _get_channel_id(streamer_username: str) -> str:
     response = requests.get("https://api.twitch.tv/helix/users",
                             params={"login": streamer_username},
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
@@ -202,6 +197,11 @@ def _get_channel_id(streamer_username):
     if not body["data"]:
         raise bot.AdminError(f"No Twitch channel '{streamer_username}'")
     return body["data"][0]["id"]
+
+
+def _nonce() -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(random.choices(alphabet, k=30))
 
 
 # Mapping from the strings used in the API to human-readable English names.
