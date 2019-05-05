@@ -9,9 +9,10 @@ import hello
 import irc_connection
 import roulette
 import secret
+from twitch_event import TwitchEventConnection
 
 
-class TwitchConnection(irc_connection.IrcConnection):
+class TwitchChatConnection(irc_connection.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
                  streamer_username: str) -> None:
         if not oauth_token.startswith("oauth:"):
@@ -25,11 +26,14 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    conn = TwitchConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu")
+    connections = [
+        TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu"),
+        TwitchEventConnection("Shrdluuu", "http://45.79.95.51:8765"),
+    ]
     handlers = [
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", [conn], handlers)
+    b = bot.Bot("impbot.sqlite", connections, handlers)
     b.main()

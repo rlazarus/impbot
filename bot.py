@@ -1,3 +1,4 @@
+import logging
 import queue
 import sys
 import threading
@@ -44,6 +45,17 @@ class AdminError(Exception):
     pass
 
 
+class ServerError(Exception):
+    """A server we're connected to did something unexpected.
+
+    The difference between this and AdminError is that an AdminError can be
+    resolved by fixing the bot's configuration. If the server sends us an
+    "incorrect password" error, that's an AdminError, but if it hangs up on us
+    that's a ServerError.
+    """
+    pass
+
+
 class Connection(ABC):
     @abstractmethod
     def say(self, text: str) -> None:
@@ -85,23 +97,20 @@ class Bot:
                                      f"{type(handler)} register '{command}'.")
                 commands[command] = handler
 
+        if db is not None:
+            data.startup(db)
+
         self.handlers = handlers
         self._queue = queue.Queue()
 
         # Initialize the handler thread here, but we'll start it in run().
-        self._handler_thread = threading.Thread(target=self.handle_queue,
-                                                args=[db])
+        self._handler_thread = threading.Thread(
+            name="Event handler", target=self.handle_queue)
 
     def process(self, event: Event) -> None:
         self._queue.put(event)
 
-    def handle_queue(self, db: Optional[str]) -> None:
-        # Initialize the DB. We can't do this in __init__ because sqlite objects
-        # can't be passed between threads, and the one belonging to the data
-        # module should be available in the handler thread.
-        if db is not None:
-            data.startup(db)
-
+    def handle_queue(self) -> None:
         while True:
             event = self._queue.get()
             if isinstance(event, Shutdown):
@@ -127,14 +136,15 @@ class Bot:
         self._handler_thread.start()
         conn_threads = []
         for connection in self.connections:
-            t = threading.Thread(target=connection.run, args=[self.process])
+            t = threading.Thread(name=type(connection).__name__,
+                                 target=connection.run, args=[self.process])
             t.start()
             conn_threads.append(t)
 
         try:
             self._handler_thread.join()
         except KeyboardInterrupt:
-            print("Exiting...")
+            logging.info("Exiting...")
             self._queue.put(Shutdown())
             self._handler_thread.join()
 
