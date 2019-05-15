@@ -15,7 +15,9 @@ import command
 import cooldown
 import data
 import secret
+import twitch
 import twitch_event
+import twitch_webhook
 
 ADMINS = {"twoheadedgiant", "shrdluuu"}
 
@@ -87,6 +89,29 @@ class TwitchEventBlinkHandler(bot.Handler):
 
     def run(self, event: bot.Event) -> None:
         self.hue_handler.hue_client.blink()
+
+
+class TwitchEnableDisableHandler(bot.Handler):
+    def __init__(self, hue_handler: HueHandler,
+                 chat_conn: twitch.TwitchChatConnection) -> None:
+        super().__init__()
+        self.hue_handler = hue_handler
+        self.chat_conn = chat_conn
+
+    def check(self, event: bot.Event) -> bool:
+        return isinstance(event, twitch_webhook.TwitchWebhookEvent)
+
+    def run(self, event: bot.Event) -> None:
+        # TODO: Refactor so the replies here can be returned instead of having
+        #   a reference to a TwitchChatConnection, then dedupe with HueHandler's
+        #   enable and disable.
+        if isinstance(event, twitch_webhook.StreamStartedEvent):
+            self.hue_handler.enabled = True
+            self.chat_conn.say("twoheaDogchamp twoheaDogchamp")
+
+        if isinstance(event, twitch_webhook.StreamEndedEvent):
+            self.hue_handler.enabled = False
+            self.chat_conn.say("THGSleepy THGSleepy")
 
 
 class HueClient:

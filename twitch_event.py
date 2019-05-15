@@ -1,8 +1,6 @@
 import asyncio
 import json
 import logging
-import random
-import string
 from typing import Callable, Optional, Dict, Any
 from urllib import parse
 
@@ -13,6 +11,7 @@ import websockets
 import bot
 import data
 import secret
+import twitch_util
 
 
 @attr.s(auto_attribs=True)
@@ -82,8 +81,8 @@ class TwitchEventConnection(bot.Connection):
 
     async def subscribe(self, websocket: websockets.WebSocketClientProtocol) \
             -> Dict[str, str]:
-        channel_id = _get_channel_id(self.streamer_username)
-        nonce = _nonce()
+        channel_id = twitch_util.get_channel_id(self.streamer_username)
+        nonce = twitch_util.nonce()
 
         await websocket.send(json.dumps({
             "type": "LISTEN",
@@ -185,23 +184,6 @@ def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
         # TODO: Fill this in if these events turn out to be donations, otherwise
         #   delete.
         raise NotImplementedError(body)
-
-
-def _get_channel_id(streamer_username: str) -> str:
-    response = requests.get("https://api.twitch.tv/helix/users",
-                            params={"login": streamer_username},
-                            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-    if response.status_code != 200:
-        raise bot.ServerError(response)
-    body = json.loads(response.text)
-    if not body["data"]:
-        raise bot.AdminError(f"No Twitch channel '{streamer_username}'")
-    return body["data"][0]["id"]
-
-
-def _nonce() -> str:
-    alphabet = string.ascii_letters + string.digits
-    return "".join(random.choices(alphabet, k=30))
 
 
 # Mapping from the strings used in the API to human-readable English names.
