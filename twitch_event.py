@@ -94,9 +94,6 @@ class TwitchEventConnection(bot.Connection):
                 "topics": [
                     f"channel-bits-events-v2.{channel_id}",
                     f"channel-subscribe-events-v1.{channel_id}",
-                    # TODO: Is "commerce" donations? (Probably not -- bet we
-                    #   need a separate streamlabs connection.)
-                    f"channel-commerce-events-v1.{channel_id}",
                 ],
                 "auth_token": self.data.get("access_token"),
             }
@@ -185,10 +182,6 @@ def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
                 msg["user_name"], SUB_PLANS[msg["sub_plan"]],
                 msg["cumulative-months"], msg["streak-months"],
                 msg["sub_message"]["message"]))
-    elif "-commerce-" in topic:
-        # TODO: Fill this in if these events turn out to be donations, otherwise
-        #   delete.
-        raise NotImplementedError(body)
 
 
 async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
