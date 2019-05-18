@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 from typing import Callable, Optional, Dict, Any
 from urllib import parse
 
@@ -71,6 +72,8 @@ class TwitchEventConnection(bot.Connection):
                 response = await self.subscribe(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
                     raise bot.ServerError("Two BADAUTH errors, giving up.")
+
+            asyncio.create_task(_ping_forever(self.websocket))
 
             try:
                 async for message in self.websocket:
@@ -161,6 +164,8 @@ class TwitchEventConnection(bot.Connection):
 
 
 def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
+    if body["type"] == "PONG":
+        return
     if body["type"] != "MESSAGE":
         raise bot.ServerError(body)
     topic = body["data"]["topic"]
@@ -184,6 +189,14 @@ def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
         # TODO: Fill this in if these events turn out to be donations, otherwise
         #   delete.
         raise NotImplementedError(body)
+
+
+async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
+    while websocket.open:
+        logging.debug("Pubsub PING")
+        await websocket.send(json.dumps({"type": "PING"}))
+        # Add some jitter, but ping at least every five minutes.
+        await asyncio.sleep(295 + random.randint(-5, 5))
 
 
 # Mapping from the strings used in the API to human-readable English names.
