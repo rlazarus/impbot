@@ -1,5 +1,4 @@
 import threading
-from typing import Callable
 
 import bot
 import custom
@@ -14,12 +13,12 @@ class StdioConnection(bot.Connection):
     def say(self, text: str) -> None:
         print(text)
 
-    def run(self, callback: Callable[[bot.Event], None]) -> None:
+    def run(self, on_event: bot.EventCallback) -> None:
         # Because of the way input() works, we only exit the loop after being
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():
             m = bot.Message("stdin", input("> "), self.say)
-            callback(m)
+            on_event(m)
 
     def shutdown(self) -> None:
         self._canceled.set()

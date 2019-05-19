@@ -1,5 +1,5 @@
 import unittest
-from typing import Callable, Union
+from typing import Union
 from unittest import mock
 
 import bot
@@ -30,8 +30,8 @@ class OneEventConnection(bot.Connection):
     def say(self, text: str) -> None:
         pass
 
-    def run(self, callback: Callable[[bot.Event], None]) -> None:
-        callback(self.event)
+    def run(self, on_event: bot.EventCallback) -> None:
+        on_event(self.event)
 
     def shutdown(self) -> None:
         pass

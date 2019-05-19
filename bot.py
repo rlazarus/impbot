@@ -56,13 +56,16 @@ class ServerError(Exception):
     pass
 
 
+EventCallback = Callable[[Event], None]
+
+
 class Connection(ABC):
     @abstractmethod
     def say(self, text: str) -> None:
         pass
 
     @abstractmethod
-    def run(self, callback: Callable[[Event], None]) -> None:
+    def run(self, on_event: EventCallback) -> None:
         pass
 
     @abstractmethod

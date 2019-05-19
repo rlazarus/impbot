@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import sys
-from typing import Callable, Optional, Dict, Union
+from typing import Optional, Dict, Union
 
 import attr
 import flask
@@ -43,7 +43,7 @@ class StreamChangedEvent(TwitchWebhookEvent):
 class TwitchWebhookConnection(bot.Connection):
     def __init__(self, streamer_username: str, host: str, port: int) -> None:
         self.user_id = twitch_util.get_channel_id(streamer_username)
-        self.callback: Callable[[bot.Event], None] = None  # Set in run().
+        self.on_event: bot.EventCallback = None  # Set in run().
         self.last_data: StreamData = _stream_data(self.user_id)
         # TODO: Move this out to Bot, there should only be one of it.
         self.flask = flask.Flask(__name__)
@@ -54,8 +54,8 @@ class TwitchWebhookConnection(bot.Connection):
         raise NotImplementedError("TwitchWebhookConnection doesn't have chat"
                                   "functionality -- use TwitchChatConnection.")
 
-    def run(self, callback: Callable[[bot.Event], None]) -> None:
-        self.callback = callback
+    def run(self, on_event: bot.EventCallback) -> None:
+        self.on_event = on_event
         self.flask.add_url_rule("/twitch_webhook", "webhook", self._webhook,
                                 methods=["GET", "POST"])
 
@@ -126,20 +126,20 @@ class TwitchWebhookConnection(bot.Connection):
             logging.error("Unexpected body")
         if not body["data"]:
             if self.last_data != OFFLINE:
-                self.callback(StreamEndedEvent())
+                self.on_event(StreamEndedEvent())
                 self.last_data = OFFLINE
             return ""
         data = body["data"][0]
         if self.last_data == OFFLINE:
             game = _game_name(data["game_id"])
-            self.callback(StreamStartedEvent(data["title"], game))
+            self.on_event(StreamStartedEvent(data["title"], game))
         else:
             if data["title"] != self.last_data["title"]:
                 title = data["title"]
-                self.callback(StreamChangedEvent(title=title, game=None))
+                self.on_event(StreamChangedEvent(title=title, game=None))
             if data["game_id"] != self.last_data["game_id"]:
                 game = _game_name(data["game_id"])
-                self.callback(StreamChangedEvent(title=None, game=game))
+                self.on_event(StreamChangedEvent(title=None, game=game))
         self.last_data = data
         return ""
 

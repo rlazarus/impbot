@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Callable, Optional
+from typing import Optional
 
 from irc import client
 
@@ -19,15 +19,15 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
         self.nickname = nickname
         self.channel = channel
         self.password = password
-        self.callback: Callable[[bot.Event], None] = None
+        self.on_event: bot.EventCallback = None
 
     # bot.Connection overrides:
 
     def say(self, text: str) -> None:
         self.connection.privmsg(self.channel, text)
 
-    def run(self, callback: Callable[[bot.Event], None]) -> None:
-        self.callback = callback
+    def run(self, on_event: bot.EventCallback) -> None:
+        self.on_event = on_event
         self.connect(self.host, self.port, self.nickname, self.password)
         # SimpleIRCClient.start() never returns even after disconnection, so
         # instead of calling into it, we run this loop ourselves.
@@ -45,7 +45,7 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
 
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
-        self.callback(
+        self.on_event(
             bot.Message(event.source.nick, event.arguments[0], self.say))
 
 

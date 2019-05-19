@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Callable, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from urllib import parse
 
 import attr
@@ -55,15 +55,15 @@ class TwitchEventConnection(bot.Connection):
         raise NotImplementedError("TwitchEventConnection doesn't have chat"
                                   "functionality -- use TwitchChatConnection.")
 
-    def run(self, callback: Callable[[bot.Event], None]) -> None:
+    def run(self, on_event: bot.EventCallback) -> None:
         if not self.data.exists("access_token"):
             self.oauth_authorize()
 
         # The websockets library wants to be called asynchronously, so bridge
         # into async code here.
-        self.event_loop.run_until_complete(self.run_coro(callback))
+        self.event_loop.run_until_complete(self.run_coro(on_event))
 
-    async def run_coro(self, callback: Callable[[bot.Event], None]) -> None:
+    async def run_coro(self, on_event: bot.EventCallback) -> None:
         url = "wss://pubsub-edge.twitch.tv"
         async with websockets.connect(url, close_timeout=1) as self.websocket:
             response = await self.subscribe(self.websocket)
@@ -78,7 +78,7 @@ class TwitchEventConnection(bot.Connection):
             try:
                 async for message in self.websocket:
                     logging.debug(message)
-                    handle_message(callback, json.loads(message))
+                    handle_message(on_event, json.loads(message))
             except websockets.ConnectionClosed:
                 pass
 
@@ -160,7 +160,7 @@ class TwitchEventConnection(bot.Connection):
                                              self.event_loop)
 
 
-def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
+def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
     if body["type"] == "PONG":
         return
     if body["type"] != "MESSAGE":
@@ -169,16 +169,16 @@ def handle_message(callback: Callable[[bot.Event], None], body: Dict[str, Any]):
     msg = json.loads(body["data"]["message"])
     if "-bits-" in topic:
         msg_data = msg["data"]
-        callback(Bits(msg_data.get("user_name", None), msg_data["bits_used"],
+        on_event(Bits(msg_data.get("user_name", None), msg_data["bits_used"],
                       msg_data["chat_message"]))
     elif "-subscribe-" in topic:
         if "recipient_user_name" in msg:
-            callback(GiftSubscription(
+            on_event(GiftSubscription(
                 msg.get("user_name", None), SUB_PLANS[msg["sub_plan"]],
                 msg["months"], None, msg["sub_message"]["message"],
                 msg["recipient_user_name"]))
         else:
-            callback(Subscription(
+            on_event(Subscription(
                 msg["user_name"], SUB_PLANS[msg["sub_plan"]],
                 msg["cumulative-months"], msg["streak-months"],
                 msg["sub_message"]["message"]))
