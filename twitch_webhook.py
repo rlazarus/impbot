@@ -74,6 +74,7 @@ class TwitchWebhookConnection(bot.Connection):
         # TODO: Unsubscribe on exit.
         topic = f"https://api.twitch.tv/helix/streams?user_id={self.user_id}"
         self.secret = twitch_util.nonce()
+        logging.debug(f"Secret: {self.secret}")
         with self.flask.app_context():
             callback_url = flask.url_for("webhook", _external=True)
         response = requests.post(
@@ -103,11 +104,18 @@ class TwitchWebhookConnection(bot.Connection):
         logging.debug(flask.request.headers)
         logging.debug(flask.request.json)
 
+        # TODO: The signature doesn't match. Does request.data come back empty
+        #       if request.json has already been accessed? If so, only go
+        #       through request.data and call json.loads ourselves (since we
+        #       need the SHA-256 of the original bytes). We'll know if "Body
+        #       length: 0" is logged.
+        # TODO: Once that's debugged, ignore messages with the wrong secret.
         sha256 = hashlib.sha256()
         sha256.update(self.secret.encode())
         sha256.update(flask.request.data)
-        expected_secret = sha256.hexdigest()
-        logging.debug(f"Expected secret: {expected_secret}")
+        expected_signature = sha256.hexdigest()
+        logging.debug(f"Expected signature: {expected_signature}")
+        logging.debug(f"Body length: {len(flask.request.data)}")
 
         body = flask.request.json
         if 'data' not in body:
