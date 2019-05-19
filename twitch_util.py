@@ -1,3 +1,4 @@
+import functools
 import json
 import random
 import string
@@ -9,7 +10,12 @@ import secret
 
 
 def get_channel_id(streamer_username: str) -> int:
-    # TODO: Memoize.
+    # Canonicalize the username to share a cache entry.
+    return _get_channel_id(streamer_username.lower())
+
+
+@functools.lru_cache()
+def _get_channel_id(streamer_username: str) -> int:
     response = requests.get("https://api.twitch.tv/helix/users",
                             params={"login": streamer_username},
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
