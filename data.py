@@ -2,6 +2,7 @@ import logging
 import sqlite3
 from typing import List, Tuple, Optional
 
+logger = logging.getLogger(__name__)
 _db: Optional[str] = None
 
 
@@ -15,8 +16,8 @@ def startup(db: str) -> None:
                      "WHERE type='table' AND name='impbot'")
     if not c.fetchone():
         if ":memory:" not in _db and "mode=memory" not in _db:
-            logging.warning("Database doesn't exist -- creating a new one. "
-                            "Welcome! :)")
+            logger.warning("Database doesn't exist -- creating a new one. "
+                           "Welcome! :)")
         conn.execute("CREATE TABLE impbot "
                      "(handler_class TEXT, key TEXT, value TEXT, "
                      "PRIMARY KEY(handler_class, key))")

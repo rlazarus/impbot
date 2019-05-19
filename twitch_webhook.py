@@ -14,6 +14,8 @@ import secret
 import stdio
 import twitch_util
 
+logger = logging.getLogger(__name__)
+
 StreamData = Dict[str, Union[str, int]]
 OFFLINE: StreamData = dict()
 
@@ -74,7 +76,7 @@ class TwitchWebhookConnection(bot.Connection):
         # TODO: Unsubscribe on exit.
         topic = f"https://api.twitch.tv/helix/streams?user_id={self.user_id}"
         self.secret = twitch_util.nonce()
-        logging.debug(f"Secret: {self.secret}")
+        logger.debug(f"Secret: {self.secret}")
         with self.flask.app_context():
             callback_url = flask.url_for("webhook", _external=True)
         response = requests.post(
@@ -87,22 +89,22 @@ class TwitchWebhookConnection(bot.Connection):
                   },
             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
         if response.status_code != 202:
-            logging.error(response.status_code)
-            logging.error(response.headers)
-            logging.error(response.text)
+            logger.error(response.status_code)
+            logger.error(response.headers)
+            logger.error(response.text)
             raise bot.ServerError(response)
 
     def _webhook(self):
         if flask.request.method == "GET":
-            logging.debug(f"GET {flask.request.url}")
-            logging.debug(flask.request.headers)
-            logging.debug(flask.request.data)
+            logger.debug(f"GET {flask.request.url}")
+            logger.debug(flask.request.headers)
+            logger.debug(flask.request.data)
 
             # Subscription request acknowledgement. TODO: Also handle rejection.
             return flask.request.args['hub.challenge']
 
-        logging.debug(flask.request.headers)
-        logging.debug(flask.request.json)
+        logger.debug(flask.request.headers)
+        logger.debug(flask.request.json)
 
         # TODO: The signature doesn't match. Does request.data come back empty
         #       if request.json has already been accessed? If so, only go
@@ -114,8 +116,8 @@ class TwitchWebhookConnection(bot.Connection):
         sha256.update(self.secret.encode())
         sha256.update(flask.request.data)
         expected_signature = sha256.hexdigest()
-        logging.debug(f"Expected signature: {expected_signature}")
-        logging.debug(f"Body length: {len(flask.request.data)}")
+        logger.debug(f"Expected signature: {expected_signature}")
+        logger.debug(f"Body length: {len(flask.request.data)}")
 
         body = flask.request.json
         if 'data' not in body:
@@ -123,7 +125,7 @@ class TwitchWebhookConnection(bot.Connection):
             # 200 OK no matter what.
             # TODO: Consider separating the parsing out of the Flask handler, so
             #       that we can do both.
-            logging.error("Unexpected body")
+            logger.error("Unexpected body")
         if not body["data"]:
             if self.last_data != OFFLINE:
                 self.on_event(StreamEndedEvent())
@@ -172,9 +174,9 @@ def _game_name(game_id: int) -> str:
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(logging.StreamHandler(sys.stdout))
+    rootLogger = logging.getLogger()
+    rootLogger.setLevel(logging.DEBUG)
+    rootLogger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
         TwitchWebhookConnection("Shrdluuu", "127.0.0.1", 5000),

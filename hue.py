@@ -19,6 +19,8 @@ import twitch
 import twitch_event
 import twitch_webhook
 
+logger = logging.getLogger(__name__)
+
 ADMINS = {"twoheadedgiant", "shrdluuu"}
 
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
@@ -210,7 +212,7 @@ class HueClient:
         realm_match = re.search('realm="(.*?)"', auth)
         nonce_match = re.search('nonce="(.*?)"', auth)
         if not realm_match or not nonce_match:
-            logging.error(f"Bad OAuth refresh response: {response}")
+            logger.error(f"Bad OAuth refresh response: {response}")
             raise HueError
         realm = realm_match.group(1)
         nonce = nonce_match.group(1)
@@ -249,9 +251,9 @@ def _log(response: requests.Response, normal_status: int = 200) -> None:
         level = logging.DEBUG
     else:
         level = logging.ERROR
-    logging.log(level, response)
-    logging.log(level, response.headers)
-    logging.log(level, response.text)
+    logger.log(level, response)
+    logger.log(level, response.headers)
+    logger.log(level, response.text)
 
 
 def _md5(s: str) -> str:

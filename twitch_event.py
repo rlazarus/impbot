@@ -14,6 +14,7 @@ import data
 import secret
 import twitch_util
 
+logger = logging.getLogger(__name__)
 
 @attr.s(auto_attribs=True)
 class TwitchEvent(bot.Event):
@@ -77,7 +78,7 @@ class TwitchEventConnection(bot.Connection):
 
             try:
                 async for message in self.websocket:
-                    logging.debug(message)
+                    logger.debug(message)
                     handle_message(on_event, json.loads(message))
             except websockets.ConnectionClosed:
                 pass
@@ -103,7 +104,7 @@ class TwitchEventConnection(bot.Connection):
         # generally the first one.
         async for message in websocket:
             response = json.loads(message)
-            logging.debug(response)
+            logger.debug(response)
             if response["nonce"] == nonce:
                 break
         else:
@@ -131,12 +132,12 @@ class TwitchEventConnection(bot.Connection):
         self._oauth_fetch({"grant_type": "authorization_code",
                            "code": access_code,
                            "redirect_uri": self.redirect_uri})
-        logging.info("Twitch OAuth: Authorized!")
+        logger.info("Twitch OAuth: Authorized!")
 
     def oauth_refresh(self) -> None:
         self._oauth_fetch({"grant_type": "refresh_token",
                            "refresh_token": self.data.get("refresh_token")})
-        logging.info("Twitch OAuth: Refreshed!")
+        logger.info("Twitch OAuth: Refreshed!")
 
     def _oauth_fetch(self, params: Dict[str, str]) -> None:
         response = requests.post(
@@ -186,7 +187,7 @@ def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
 
 async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
     while websocket.open:
-        logging.debug("Pubsub PING")
+        logger.debug("Pubsub PING")
         await websocket.send(json.dumps({"type": "PING"}))
         # Add some jitter, but ping at least every five minutes.
         await asyncio.sleep(295 + random.randint(-5, 5))

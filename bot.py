@@ -9,6 +9,8 @@ import attr
 
 import data
 
+logger = logging.getLogger(__name__)
+
 
 class Event:
     def reply(self, text: str) -> None:
@@ -136,6 +138,7 @@ class Bot:
                 return
 
     def main(self) -> None:
+        logger.info("Starting...")
         self._handler_thread.start()
         conn_threads = []
         for connection in self.connections:
@@ -147,7 +150,7 @@ class Bot:
         try:
             self._handler_thread.join()
         except KeyboardInterrupt:
-            logging.info("Exiting...")
+            logger.info("Exiting...")
             self._queue.put(Shutdown())
             self._handler_thread.join()
 
