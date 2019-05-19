@@ -94,14 +94,22 @@ class TwitchWebhookConnection(bot.Connection):
             logger.error(response.text)
             raise bot.ServerError(response)
 
-    def _webhook(self):
+    def _webhook(self) -> Union[str, flask.Response]:
         if flask.request.method == "GET":
             logger.debug(f"GET {flask.request.url}")
             logger.debug(flask.request.headers)
             logger.debug(flask.request.data)
 
-            # Subscription request acknowledgement. TODO: Also handle rejection.
-            return flask.request.args['hub.challenge']
+            # Subscription request acknowledgement.
+            if "hub.challenge" in flask.request.args:
+                # Success!
+                return flask.request.args["hub.challenge"]
+            else:
+                # Failure.
+                # TODO: The API docs don't have an example of a rejection notice
+                #       and I couldn't manage to trigger one, so this is a
+                #       guess.
+                raise bot.ServerError(f"Webhook subscription failed.")
 
         logger.debug(flask.request.headers)
         logger.debug(flask.request.json)
@@ -130,7 +138,7 @@ class TwitchWebhookConnection(bot.Connection):
             if self.last_data != OFFLINE:
                 self.on_event(StreamEndedEvent())
                 self.last_data = OFFLINE
-            return ""
+            return flask.Response(status=200)
         data = body["data"][0]
         if self.last_data == OFFLINE:
             game = _game_name(data["game_id"])
@@ -143,7 +151,7 @@ class TwitchWebhookConnection(bot.Connection):
                 game = _game_name(data["game_id"])
                 self.on_event(StreamChangedEvent(title=None, game=game))
         self.last_data = data
-        return ""
+        return flask.Response(status=200)
 
     def shutdown(self) -> None:
         self.flask_server.shutdown()
