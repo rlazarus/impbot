@@ -181,7 +181,7 @@ def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
         else:
             on_event(Subscription(
                 msg["user_name"], SUB_PLANS[msg["sub_plan"]],
-                msg["cumulative-months"], msg["streak-months"],
+                msg["cumulative_months"], msg["streak_months"],
                 msg["sub_message"]["message"]))
 
 
