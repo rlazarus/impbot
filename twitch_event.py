@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @attr.s(auto_attribs=True)
 class TwitchEvent(bot.Event):
-    username: Optional[str]  # None if anonymous
+    user: Optional[bot.User]  # None for anonymous events.
 
 
 @attr.s(auto_attribs=True)
@@ -29,9 +29,9 @@ class Bits(TwitchEvent):
 
 @attr.s(auto_attribs=True)
 class Subscription(TwitchEvent):
-    sub_plan: str  # "Twitch Prime", "Tier 1", "Tier 2", or "Tier 3"
+    sub_plan: str  # "Twitch Prime", "Tier 1", "Tier 2", or "Tier 3".
     cumulative_months: int
-    streak_months: Optional[int]
+    streak_months: Optional[int]  # None if the user declines to show it.
     message: str
 
 
@@ -169,18 +169,18 @@ def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
     topic = body["data"]["topic"]
     msg = json.loads(body["data"]["message"])
     if "-bits-" in topic:
-        msg_data = msg["data"]
-        on_event(Bits(msg_data.get("user_name", None), msg_data["bits_used"],
-                      msg_data["chat_message"]))
+        mdata = msg["data"]
+        user = bot.User(mdata["user_name"]) if "user_name" in mdata else None
+        on_event(Bits(user, mdata["bits_used"], mdata["chat_message"]))
     elif "-subscribe-" in topic:
         if "recipient_user_name" in msg:
+            user = bot.User(msg["user_name"]) if "user_name" in msg else None
             on_event(GiftSubscription(
-                msg.get("user_name", None), SUB_PLANS[msg["sub_plan"]],
-                msg["months"], None, msg["sub_message"]["message"],
-                msg["recipient_user_name"]))
+                user, SUB_PLANS[msg["sub_plan"]], msg["months"], None,
+                msg["sub_message"]["message"], msg["recipient_user_name"]))
         else:
             on_event(Subscription(
-                msg["user_name"], SUB_PLANS[msg["sub_plan"]],
+                bot.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
                 msg["cumulative_months"], msg.get("streak_months", None),
                 msg["sub_message"]["message"]))
 

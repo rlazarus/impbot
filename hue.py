@@ -34,13 +34,13 @@ class HueHandler(command.CommandHandler):
         self.enabled = True
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
-        if message.username.lower() not in ADMINS:
+        if message.user.name.lower() not in ADMINS:
             return
         self.enabled = True
         return "twoheaDogchamp"
 
     def run_lightsoff(self, message: bot.Message) -> Optional[str]:
-        if message.username.lower() not in ADMINS:
+        if message.user.name.lower() not in ADMINS:
             return
         self.enabled = False
         return "THGSleepy"
@@ -55,7 +55,7 @@ class HueHandler(command.CommandHandler):
         scene = _canonicalize(scene)
         if scene == "rainbow":
             return self.hue_client.colorloop()
-        if scene == "off" and message.username.lower() == "jaccabre":
+        if scene == "off" and message.user.name.lower() == "jaccabre":
             return "hi Jacca twoheaDogchamp"
 
         roulette = (scene == "random")

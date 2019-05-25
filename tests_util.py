@@ -14,7 +14,7 @@ class HandlerTest(unittest.TestCase):
         self.handler: bot.Handler = None
 
     def _message(self, input):
-        return bot.Message("username", input, self.reply)
+        return bot.Message(bot.User("username"), input, self.reply)
 
     def assert_no_trigger(self, input: str) -> None:
         self.assertFalse(self.handler.check(self._message(input)))

@@ -12,6 +12,11 @@ import data
 logger = logging.getLogger(__name__)
 
 
+@attr.s(auto_attribs=True, frozen=True)
+class User:
+    name: str
+
+
 class Event:
     def reply(self, text: str) -> None:
         raise NotImplementedError
@@ -23,7 +28,7 @@ class Shutdown(Event):
 
 @attr.s(auto_attribs=True)
 class Message(Event):
-    username: str
+    user: User
     text: str
     reply: Callable[[str], None]
 

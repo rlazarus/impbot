@@ -45,7 +45,7 @@ class CustomCommandHandler(command.CommandHandler):
         # Otherwise, it's a custom command so we do our own thing.
         name = normalize(message.text.split(None, 1)[0])
         c = eval(self.data.get(name))
-        if not c.cooldowns.fire(message.username):
+        if not c.cooldowns.fire(message.user.name):
             return None
         c.count += 1
         self.data.set(name, repr(c))

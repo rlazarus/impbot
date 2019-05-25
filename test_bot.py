@@ -24,7 +24,7 @@ class AnotherFooHandler(command.CommandHandler):
 class OneEventConnection(bot.Connection):
     def __init__(self, event: Union[str, bot.Event]) -> None:
         if isinstance(event, str):
-            event = bot.Message("username", event, self.say)
+            event = bot.Message(bot.User("username"), event, self.say)
         self.event = event
 
     def say(self, text: str) -> None:
@@ -53,11 +53,11 @@ class BotTest(unittest.TestCase):
     def testHandle(self):
         b = self.init([FooHandler(), BarHandler()])
         reply = mock.Mock()
-        b.handle(bot.Message("username", "!foo", reply))
+        b.handle(bot.Message(bot.User("username"), "!foo", reply))
         reply.assert_called_with("foo!")
 
         reply.reset_mock()
-        b.handle(bot.Message("username", "not !foo", reply))
+        b.handle(bot.Message(bot.User("username"), "not !foo", reply))
         reply.assert_not_called()
 
     def testQuit(self):

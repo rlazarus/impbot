@@ -45,8 +45,8 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
 
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
-        self.on_event(
-            bot.Message(event.source.nick, event.arguments[0], self.say))
+        user = bot.User(event.source.nick)
+        self.on_event(bot.Message(user, event.arguments[0], self.say))
 
 
 if __name__ == "__main__":

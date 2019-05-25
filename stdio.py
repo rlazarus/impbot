@@ -17,7 +17,7 @@ class StdioConnection(bot.Connection):
         # Because of the way input() works, we only exit the loop after being
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():
-            m = bot.Message("stdin", input("> "), self.say)
+            m = bot.Message(bot.User("stdin"), input("> "), self.say)
             on_event(m)
 
     def shutdown(self) -> None:
