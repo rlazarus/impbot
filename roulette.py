@@ -2,7 +2,6 @@ import random
 
 import bot
 import command
-import data
 
 
 class RouletteHandler(command.CommandHandler):
@@ -17,10 +16,10 @@ class RouletteHandler(command.CommandHandler):
         if random.randint(0, 1):
             new_points = starting_points + points
             self.data.set(message.user.name, str(new_points))
-            return (f"{message.user.name} won {points} points and now has "
+            return (f"{message.user} won {points} points and now has "
                     f"{new_points} points!")
         else:
             new_points = starting_points - points
             self.data.set(message.user.name, str(new_points))
-            return (f"{message.user.name} lost {points} points and now has "
+            return (f"{message.user} lost {points} points and now has "
                     f"{new_points} points.")

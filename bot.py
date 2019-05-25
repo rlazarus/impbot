@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 class User:
     name: str
 
+    def __str__(self) -> str:
+        """
+        User.__str__ is always a display name suitable for using in a sentence.
+
+        str(user1) == str(user2) does NOT imply user1 == user2, since two users
+        may have the same name on different chat services, i.e. different
+        subclasses of User.
+        """
+        return self.name
+
 
 class Event:
     def reply(self, text: str) -> None:
