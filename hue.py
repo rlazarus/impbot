@@ -21,7 +21,7 @@ import twitch_webhook
 
 logger = logging.getLogger(__name__)
 
-ADMINS = {"twoheadedgiant", "shrdluuu"}
+ADMINS = {bot.User("twoheadedgiant"), bot.User("shrdluuu")}
 
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
@@ -34,13 +34,13 @@ class HueHandler(command.CommandHandler):
         self.enabled = True
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
-        if message.user.name.lower() not in ADMINS:
+        if message.user not in ADMINS:
             return
         self.enabled = True
         return "twoheaDogchamp"
 
     def run_lightsoff(self, message: bot.Message) -> Optional[str]:
-        if message.user.name.lower() not in ADMINS:
+        if message.user not in ADMINS:
             return
         self.enabled = False
         return "THGSleepy"
