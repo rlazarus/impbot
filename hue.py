@@ -21,7 +21,7 @@ import twitch_webhook
 
 logger = logging.getLogger(__name__)
 
-ADMINS = {bot.User("twoheadedgiant"), bot.User("shrdluuu")}
+ADMINS = {twitch.TwitchUser("twoheadedgiant"), twitch.TwitchUser("shrdluuu")}
 
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 

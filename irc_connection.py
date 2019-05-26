@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Optional
+from typing import Optional, List
 
 from irc import client
 
@@ -12,13 +12,15 @@ import roulette
 
 class IrcConnection(bot.Connection, client.SimpleIRCClient):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
-                 password: Optional[str] = None) -> None:
+                 password: Optional[str] = None,
+                 capabilities: Optional[List[str]] = None) -> None:
         super().__init__()
         self.host = host
         self.port = port
         self.nickname = nickname
         self.channel = channel
         self.password = password
+        self.capabilities = capabilities if capabilities is not None else []
         self.on_event: bot.EventCallback = None
 
     # bot.Connection overrides:
@@ -41,12 +43,20 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
 
     def on_welcome(self, connection: client.ServerConnection,
                    _: client.Event) -> None:
+        if self.capabilities:
+            connection.cap("REQ", *self.capabilities)
+            connection.cap("END")
         connection.join(self.channel)
 
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
-        user = bot.User(event.source.nick)
+        user = self._user(event)
         self.on_event(bot.Message(user, event.arguments[0], self.say))
+
+    # Hook for subclasses to override:
+
+    def _user(self, event: client.Event) -> bot.User:
+        return bot.User(event.source.nick)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 import logging
 import sys
+from typing import Optional
 
+import attr
 from irc import client
 
 import bot
@@ -9,7 +11,6 @@ import hello
 import irc_connection
 import roulette
 import secret
-from twitch_event import TwitchEventConnection
 
 
 class TwitchChatConnection(irc_connection.IrcConnection):
@@ -18,17 +19,38 @@ class TwitchChatConnection(irc_connection.IrcConnection):
         if not oauth_token.startswith("oauth:"):
             oauth_token = "oauth:" + oauth_token
         super().__init__("irc.chat.twitch.tv", 6667, bot_username.lower(),
-                         "#" + streamer_username.lower(), password=oauth_token)
+                         "#" + streamer_username.lower(), password=oauth_token,
+                         capabilities=["twitch.tv/tags"])
+
+    def _user(self, event: client.Event) -> bot.User:
+        tags = {i['key']: i['value'] for i in event.tags}
+
+        badges = tags.get("badges", "").split(",")
+        moderator = any(
+            badge.startswith("moderator/") or badge.startswith("broadcaster/")
+            for badge in badges)
+        display_name = tags.get("display-name", event.source.nick)
+        return TwitchUser(event.source.nick, display_name, moderator)
+
+
+@attr.s(frozen=True)
+class TwitchUser(bot.User):
+    display_name: Optional[str] = attr.ib(cmp=False, default=None)
+    # For now this is actually True for the broadcaster, not just moderators.
+    # TODO: Add bits for other kinds of status.
+    moderator: Optional[bool] = attr.ib(cmp=False, default=None)
+
+    def __str__(self) -> str:
+        return self.display_name if self.display_name is not None else self.name
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger(client.__name__)
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
         TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu"),
-        TwitchEventConnection("Shrdluuu", "http://45.79.95.51:8765"),
     ]
     handlers = [
         custom.CustomCommandHandler(),
