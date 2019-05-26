@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Set, List
 
 import attr
 from irc import client
@@ -15,30 +15,36 @@ import secret
 
 class TwitchChatConnection(irc_connection.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
-                 streamer_username: str) -> None:
+                 streamer_username: str, admins: List[str]) -> None:
         if not oauth_token.startswith("oauth:"):
             oauth_token = "oauth:" + oauth_token
         super().__init__("irc.chat.twitch.tv", 6667, bot_username.lower(),
                          "#" + streamer_username.lower(), password=oauth_token,
                          capabilities=["twitch.tv/tags"])
+        self.admins = admins
 
     def _user(self, event: client.Event) -> bot.User:
         tags = {i['key']: i['value'] for i in event.tags}
-
-        badges = tags.get("badges", "").split(",")
-        moderator = any(
-            badge.startswith("moderator/") or badge.startswith("broadcaster/")
-            for badge in badges)
+        if "badges" in tags and tags["badges"]:
+            # Each badge is in the form <name>/<number> (e.g. number of months
+            # subscribed) and we don't need the numbers for anything.
+            badges = set(badge.split("/", 1)[0]
+                         for badge in tags["badges"].split(","))
+        else:
+            badges = set()
         display_name = tags.get("display-name", event.source.nick)
-        return TwitchUser(event.source.nick, display_name, moderator)
+        admin = "broadcaster" in badges or event.source.nick in self.admins
+        moderator = "broadcaster" in badges or "moderator" in badges
+        return TwitchUser(event.source.nick, admin, display_name, moderator)
 
 
 @attr.s(frozen=True)
 class TwitchUser(bot.User):
     display_name: Optional[str] = attr.ib(cmp=False, default=None)
-    # For now this is actually True for the broadcaster, not just moderators.
-    # TODO: Add bits for other kinds of status.
+    # The streamer doesn't have a mod badge, but they have a superset of
+    # mod privileges, so this is true for them too.
     moderator: Optional[bool] = attr.ib(cmp=False, default=None)
+    badges: Optional[Set[str]] = attr.ib(cmp=False, default=None)
 
     def __str__(self) -> str:
         return self.display_name if self.display_name is not None else self.name

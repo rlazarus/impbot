@@ -32,6 +32,7 @@ class User:
     an identity.
     """
     name: str
+    admin: Optional[bool] = attr.ib(cmp=False, default=None)
 
     @property
     def moderator(self) -> bool:

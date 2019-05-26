@@ -21,8 +21,6 @@ import twitch_webhook
 
 logger = logging.getLogger(__name__)
 
-ADMINS = {twitch.TwitchUser("twoheadedgiant"), twitch.TwitchUser("shrdluuu")}
-
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 
@@ -34,13 +32,13 @@ class HueHandler(command.CommandHandler):
         self.enabled = True
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
-        if message.user not in ADMINS:
+        if not message.user.admin:
             return
         self.enabled = True
         return "twoheaDogchamp"
 
     def run_lightsoff(self, message: bot.Message) -> Optional[str]:
-        if message.user not in ADMINS:
+        if not message.user.admin:
             return
         self.enabled = False
         return "THGSleepy"
@@ -55,7 +53,7 @@ class HueHandler(command.CommandHandler):
         scene = _canonicalize(scene)
         if scene == "rainbow":
             return self.hue_client.colorloop()
-        if scene == "off" and message.user.name.lower() == "jaccabre":
+        if scene == "off" and message.user == twitch.TwitchUser("jaccabre"):
             return "hi Jacca twoheaDogchamp"
 
         roulette = (scene == "random")
