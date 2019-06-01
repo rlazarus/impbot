@@ -25,27 +25,25 @@ cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 
 class HueHandler(command.CommandHandler):
-    def __init__(self, hue_username: str) -> None:
+    def __init__(self, hue_client: "HueClient") -> None:
         super().__init__()
-        self.hue_client = HueClient(hue_username)
-        # TODO: Move "enabled" into the DB, so it persists across restarts.
-        self.enabled = True
+        self.hue_client = hue_client
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
         if not message.user.admin:
             return
-        self.enabled = True
+        self.hue_client.enabled = True
         return "twoheaDogchamp"
 
     def run_lightsoff(self, message: bot.Message) -> Optional[str]:
         if not message.user.admin:
             return
-        self.enabled = False
+        self.hue_client.enabled = False
         return "THGSleepy"
 
     def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
             Optional[str]:
-        if not self.enabled:
+        if not self.hue_client.enabled:
             return
         if not scene:
             return self.hue_client.list_scenes()
@@ -70,32 +68,29 @@ class HueHandler(command.CommandHandler):
         # Otherwise, no need to say anything.
 
     def run_blink(self) -> Optional[str]:
-        if not self.enabled:
+        if not self.hue_client.enabled:
             return
         return self.hue_client.blink()
 
 
 class TwitchEventBlinkHandler(bot.Handler):
-    def __init__(self, hue_handler: HueHandler) -> None:
-        # TODO: Break the dependency on HueHandler -- right now HueHandler
-        #   instantiates the HueClient, but both handlers should depend directly
-        #   on HueClient instead.
+    def __init__(self, hue_client: "HueClient") -> None:
         super().__init__()
-        self.hue_handler = hue_handler
+        self.hue_client = hue_client
 
     def check(self, event: bot.Event) -> bool:
-        return (isinstance(event, twitch_event.TwitchEvent) and
-                self.hue_handler.enabled)
+        return isinstance(event, twitch_event.TwitchEvent)
 
     def run(self, event: bot.Event) -> None:
-        self.hue_handler.hue_client.blink()
+        if self.hue_client.enabled:
+            self.hue_client.blink()
 
 
 class TwitchEnableDisableHandler(bot.Handler):
-    def __init__(self, hue_handler: HueHandler,
+    def __init__(self, hue_client: "HueClient",
                  chat_conn: twitch.TwitchChatConnection) -> None:
         super().__init__()
-        self.hue_handler = hue_handler
+        self.hue_client = hue_client
         self.chat_conn = chat_conn
 
     def check(self, event: bot.Event) -> bool:
@@ -103,14 +98,13 @@ class TwitchEnableDisableHandler(bot.Handler):
 
     def run(self, event: bot.Event) -> None:
         # TODO: Refactor so the replies here can be returned instead of having
-        #   a reference to a TwitchChatConnection, then dedupe with HueHandler's
-        #   enable and disable.
+        #   a reference to a TwitchChatConnection.
         if isinstance(event, twitch_webhook.StreamStartedEvent):
-            self.hue_handler.enabled = True
+            self.hue_client.enabled = True
             self.chat_conn.say("twoheaDogchamp twoheaDogchamp")
 
         if isinstance(event, twitch_webhook.StreamEndedEvent):
-            self.hue_handler.enabled = False
+            self.hue_client.enabled = False
             self.chat_conn.say("THGSleepy THGSleepy")
 
 
@@ -118,6 +112,18 @@ class HueClient:
     def __init__(self, username: str):
         self.data = data.Namespace("HueClient")
         self.username = username
+
+    @property
+    def enabled(self) -> bool:
+        """
+        This property is a shortcut to shared storage only -- it doesn't enable
+        or disable any of the other methods.
+        """
+        return self.data.get("enabled") == "True"
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self.data.set("enabled", str(value))
 
     def list_scenes(self) -> str:
         try:
