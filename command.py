@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple, Optional
+from typing import Callable, List, Tuple, Optional, Type, Any
 
 import bot
 import inspect
@@ -41,28 +41,7 @@ class CommandHandler(bot.Handler):
             # If the function takes a Message, the args we'll parse are the
             # parameters after it.
             argtypes = argtypes[1:]
-        if not argtypes:
-            # For commands with no arguments, silently ignore any other text on
-            # the line.
-            args: List[str] = []
-        elif argtypes == [Optional[str]]:  # TODO: Generalize this further.
-            args = [argstring if argstring else None]
-        else:
-            # Split at most len(argtypes) - 1 times: len(args) <= len(argtypes).
-            args = argstring.split(None, len(argtypes) - 1)
-            if len(args) < len(argtypes):
-                raise UsageError(func)
-            for i, cls in enumerate(argtypes):
-                # If the arg needs to be converted to something other than
-                # string, do that and replace it. If that fails, it's a usage
-                # error.
-                # TODO: Eventually, this won't be enough -- converting to User
-                # requires more context than just the string.
-                if cls != str:
-                    try:
-                        args[i] = cls(args[i])
-                    except ValueError:
-                        raise UsageError(func)
+        args = _args(argtypes, func, argstring)
         try:
             if pass_message:
                 return func(message, *args)
@@ -74,8 +53,33 @@ class CommandHandler(bot.Handler):
             raise UsageError(func)
 
 
+def _args(argtypes: List[Type], func: Callable, argstring: str) -> List[Any]:
+    if not argtypes:
+        # For commands with no arguments, silently ignore any other text on
+        # the line.
+        return []
+    if argtypes == [Optional[str]]:  # TODO: Generalize this further.
+        return [argstring if argstring else None]
+    # Split at most len(argtypes) - 1 times: len(args) <= len(argtypes).
+    args = argstring.split(None, len(argtypes) - 1)
+    if len(args) < len(argtypes):
+        raise UsageError(func)
+    for i, cls in enumerate(argtypes):
+        # If the arg needs to be converted to something other than
+        # string, do that and replace it. If that fails, it's a usage
+        # error.
+        # TODO: Eventually, this won't be enough -- converting to User
+        # requires more context than just the string.
+        if cls != str:
+            try:
+                args[i] = cls(args[i])
+            except ValueError:
+                raise UsageError(func)
+    return args
+
+
 class UsageError(bot.UserError):
-    def __init__(self, func):
+    def __init__(self, func: Callable):
         assert func.__name__.startswith("run_")
         super().__init__("Usage: " + self._usage(func))
 
