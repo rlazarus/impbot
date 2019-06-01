@@ -41,6 +41,10 @@ class CustomCommandHandler(command.CommandHandler):
         # If CommandHandler's check() passes, this is a built-in like !addcom,
         # so let CommandHandler's run() dispatch to it.
         if super().check(message):
+            # As it happens, all the builtins are for mods only, so we'll do
+            # that check here. TODO: Real per-command ACLs.
+            if not (message.user.moderator or message.user.admin):
+                raise bot.UserError("You can't do that.")
             return super().run(message)
         # Otherwise, it's a custom command so we do our own thing.
         name = normalize(message.text.split(None, 1)[0])

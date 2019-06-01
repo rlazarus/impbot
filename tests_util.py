@@ -1,6 +1,6 @@
 import sqlite3
 import unittest
-from typing import Callable
+from typing import Callable, Optional
 from unittest import mock
 
 import bot
@@ -13,14 +13,17 @@ class HandlerTest(unittest.TestCase):
         self.reply: Callable[[str], None] = mock.Mock()
         self.handler: bot.Handler = None
 
-    def _message(self, input):
-        return bot.Message(bot.User("username"), input, self.reply)
+    def _message(self, input: str, user: Optional[bot.User] = None):
+        if not user:
+            user = bot.User("username")
+        return bot.Message(user, input, self.reply)
 
     def assert_no_trigger(self, input: str) -> None:
         self.assertFalse(self.handler.check(self._message(input)))
 
-    def assert_response(self, input: str, output: str) -> None:
-        message = self._message(input)
+    def assert_response(self, input: str, output: str,
+                        user: Optional[bot.User] = None) -> None:
+        message = self._message(input, user)
         self.assertTrue(self.handler.check(message))
         self.assertEqual(self.handler.run(message), output)
 
@@ -50,3 +53,9 @@ class DataHandlerTest(HandlerTest):
         super().tearDown()
         data.shutdown()
         self.conn.close()
+
+
+class Moderator(bot.User):
+    @property
+    def moderator(self) -> bool:
+        return True
