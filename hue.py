@@ -24,90 +24,6 @@ logger = logging.getLogger(__name__)
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 
-class HueHandler(command.CommandHandler):
-    def __init__(self, hue_client: "HueClient") -> None:
-        super().__init__()
-        self.hue_client = hue_client
-
-    def run_lightson(self, message: bot.Message) -> Optional[str]:
-        if not message.user.admin:
-            return
-        self.hue_client.enabled = True
-        return "twoheaDogchamp"
-
-    def run_lightsoff(self, message: bot.Message) -> Optional[str]:
-        if not message.user.admin:
-            return
-        self.hue_client.enabled = False
-        return "THGSleepy"
-
-    def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
-            Optional[str]:
-        if not self.hue_client.enabled:
-            return
-        if not scene:
-            return self.hue_client.list_scenes()
-
-        scene = _canonicalize(scene)
-        if scene == "rainbow":
-            return self.hue_client.colorloop()
-        if scene == "off" and message.user == twitch.TwitchUser("jaccabre"):
-            return "hi Jacca twoheaDogchamp"
-
-        roulette = (scene == "random")
-        if roulette:
-            scene = self.hue_client.random_scene()
-
-        response = self.hue_client.set_scene(scene)
-        if response is not None:
-            # It's an error message.
-            return response
-        if roulette:
-            name = self.data.get(f"{scene} name")
-            return f"How about... {name}! twoheaDogchamp"
-        # Otherwise, no need to say anything.
-
-    def run_blink(self) -> Optional[str]:
-        if not self.hue_client.enabled:
-            return
-        return self.hue_client.blink()
-
-
-class TwitchEventBlinkHandler(bot.Handler):
-    def __init__(self, hue_client: "HueClient") -> None:
-        super().__init__()
-        self.hue_client = hue_client
-
-    def check(self, event: bot.Event) -> bool:
-        return isinstance(event, twitch_event.TwitchEvent)
-
-    def run(self, event: bot.Event) -> None:
-        if self.hue_client.enabled:
-            self.hue_client.blink()
-
-
-class TwitchEnableDisableHandler(bot.Handler):
-    def __init__(self, hue_client: "HueClient",
-                 chat_conn: twitch.TwitchChatConnection) -> None:
-        super().__init__()
-        self.hue_client = hue_client
-        self.chat_conn = chat_conn
-
-    def check(self, event: bot.Event) -> bool:
-        return isinstance(event, twitch_webhook.TwitchWebhookEvent)
-
-    def run(self, event: bot.Event) -> None:
-        # TODO: Refactor so the replies here can be returned instead of having
-        #   a reference to a TwitchChatConnection.
-        if isinstance(event, twitch_webhook.StreamStartedEvent):
-            self.hue_client.enabled = True
-            self.chat_conn.say("twoheaDogchamp twoheaDogchamp")
-
-        if isinstance(event, twitch_webhook.StreamEndedEvent):
-            self.hue_client.enabled = False
-            self.chat_conn.say("THGSleepy THGSleepy")
-
-
 class HueClient:
     def __init__(self, username: str):
         self.data = data.Namespace("HueClient")
@@ -241,6 +157,90 @@ class HueClient:
             seconds=float(tokens["access_token_expires_in"]))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
         self.data.set("access_token_expires", str(expiration.timestamp()))
+
+
+class HueHandler(command.CommandHandler):
+    def __init__(self, hue_client: HueClient) -> None:
+        super().__init__()
+        self.hue_client = hue_client
+
+    def run_lightson(self, message: bot.Message) -> Optional[str]:
+        if not message.user.admin:
+            return
+        self.hue_client.enabled = True
+        return "twoheaDogchamp"
+
+    def run_lightsoff(self, message: bot.Message) -> Optional[str]:
+        if not message.user.admin:
+            return
+        self.hue_client.enabled = False
+        return "THGSleepy"
+
+    def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
+            Optional[str]:
+        if not self.hue_client.enabled:
+            return
+        if not scene:
+            return self.hue_client.list_scenes()
+
+        scene = _canonicalize(scene)
+        if scene == "rainbow":
+            return self.hue_client.colorloop()
+        if scene == "off" and message.user == twitch.TwitchUser("jaccabre"):
+            return "hi Jacca twoheaDogchamp"
+
+        roulette = (scene == "random")
+        if roulette:
+            scene = self.hue_client.random_scene()
+
+        response = self.hue_client.set_scene(scene)
+        if response is not None:
+            # It's an error message.
+            return response
+        if roulette:
+            name = self.data.get(f"{scene} name")
+            return f"How about... {name}! twoheaDogchamp"
+        # Otherwise, no need to say anything.
+
+    def run_blink(self) -> Optional[str]:
+        if not self.hue_client.enabled:
+            return
+        return self.hue_client.blink()
+
+
+class TwitchEventBlinkHandler(bot.Handler):
+    def __init__(self, hue_client: HueClient) -> None:
+        super().__init__()
+        self.hue_client = hue_client
+
+    def check(self, event: bot.Event) -> bool:
+        return isinstance(event, twitch_event.TwitchEvent)
+
+    def run(self, event: bot.Event) -> None:
+        if self.hue_client.enabled:
+            self.hue_client.blink()
+
+
+class TwitchEnableDisableHandler(bot.Handler):
+    def __init__(self, hue_client: HueClient,
+                 chat_conn: twitch.TwitchChatConnection) -> None:
+        super().__init__()
+        self.hue_client = hue_client
+        self.chat_conn = chat_conn
+
+    def check(self, event: bot.Event) -> bool:
+        return isinstance(event, twitch_webhook.TwitchWebhookEvent)
+
+    def run(self, event: bot.Event) -> None:
+        # TODO: Refactor so the replies here can be returned instead of having
+        #   a reference to a TwitchChatConnection.
+        if isinstance(event, twitch_webhook.StreamStartedEvent):
+            self.hue_client.enabled = True
+            self.chat_conn.say("twoheaDogchamp twoheaDogchamp")
+
+        if isinstance(event, twitch_webhook.StreamEndedEvent):
+            self.hue_client.enabled = False
+            self.chat_conn.say("THGSleepy THGSleepy")
 
 
 def _canonicalize(name: str) -> str:
