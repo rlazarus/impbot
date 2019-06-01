@@ -42,10 +42,7 @@ class HueClient:
         self.data.set("enabled", str(value))
 
     def list_scenes(self) -> str:
-        try:
-            self._maybe_fill_cache()
-        except HueError:
-            return "oh heck"
+        self._maybe_fill_cache()
         rows = [v for k, v in self.data.list(" name")]
         rows.append("Rainbow")
         rows.sort()
@@ -56,22 +53,20 @@ class HueClient:
 
     def set_scene(self, scene: str) -> Optional[str]:
         if not self.data.exists(f"{scene} id"):
-            try:
-                self._maybe_fill_cache(force=True)
-            except HueError:
-                return "oof yikes"
+            self._maybe_fill_cache(force=True)
         if not self.data.exists(f"{scene} id"):
             return self.list_scenes()
         scene_id = self.data.get(f"{scene} id")
-        return self._action(scene=scene_id)
+        self._action(scene=scene_id)
+        return None
 
-    def colorloop(self) -> Optional[str]:
-        return self._action(effect="colorloop", bri=150)
+    def colorloop(self) -> None:
+        self._action(effect="colorloop", bri=150)
 
-    def blink(self) -> Optional[str]:
-        return self._action(alert="select")
+    def blink(self) -> None:
+        self._action(alert="select")
 
-    def _action(self, **body):
+    def _action(self, **body) -> None:
         response = requests.put(
             f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
             data=json.dumps(body),
@@ -79,7 +74,7 @@ class HueClient:
                      "Content-Type": "application/json"})
         _log(response)
         if response.status_code != 200:
-            return "ah jeez"
+            raise HueError
 
     def _maybe_fill_cache(self, force: bool = False) -> None:
         if not (cache_cd.fire() or force or not self.data.list(" id")):
@@ -166,20 +161,20 @@ class HueHandler(command.CommandHandler):
 
     def run_lightson(self, message: bot.Message) -> Optional[str]:
         if not message.user.admin:
-            return
+            return None
         self.hue_client.enabled = True
         return "twoheaDogchamp"
 
     def run_lightsoff(self, message: bot.Message) -> Optional[str]:
         if not message.user.admin:
-            return
+            return None
         self.hue_client.enabled = False
         return "THGSleepy"
 
     def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
             Optional[str]:
         if not self.hue_client.enabled:
-            return
+            return None
         if not scene:
             return self.hue_client.list_scenes()
 
@@ -202,10 +197,10 @@ class HueHandler(command.CommandHandler):
             return f"How about... {name}! twoheaDogchamp"
         # Otherwise, no need to say anything.
 
-    def run_blink(self) -> Optional[str]:
+    def run_blink(self) -> None:
         if not self.hue_client.enabled:
             return
-        return self.hue_client.blink()
+        self.hue_client.blink()
 
 
 class TwitchEventBlinkHandler(bot.Handler):
@@ -263,5 +258,5 @@ def _md5(s: str) -> str:
     return m.hexdigest()
 
 
-class HueError(Exception):
+class HueError(bot.ServerError):
     pass

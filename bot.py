@@ -172,6 +172,11 @@ class Bot:
                         event.reply(response)
                 except UserError as e:
                     event.reply(str(e))
+                except (AdminError, ServerError) as e:
+                    # TODO: Add some kind of direct alerting to the admins,
+                    #  maybe via DMs.
+                    logging.exception(e)
+                    event.reply("Uh oh!")
                 return
 
     def main(self) -> None:
