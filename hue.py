@@ -116,10 +116,7 @@ class TwitchEnableDisableHandler(bot.Handler):
 
 class HueClient:
     def __init__(self, username: str):
-        # TODO: The data is still in a HueHandler namespace from when this code
-        #   was part of that class. Migrate it in the DB to a new namespace
-        #   HueClient.
-        self.data = data.Namespace("HueHandler")
+        self.data = data.Namespace("HueClient")
         self.username = username
 
     def list_scenes(self) -> str:
