@@ -82,20 +82,9 @@ class CustomCommandHandler(command.CommandHandler):
         self.data.unset(name)
         return f"Deleted !{name}."
 
-    def run_resetcount(self, args: str) -> str:
-        """!resetcount <command> [<count>]"""
-        # TODO: Type-infer Optional parameters so this can be rolled up as
-        # def run_resetcount(self, name: str, count: Optional[int])
-        if " " in args:
-            fst, snd = args.split(None, 1)
-            if snd.isdigit():
-                name, count = fst, int(snd)
-            elif fst.isdigit():
-                name, count = snd, int(fst)
-            else:
-                raise bot.UserError
-        else:
-            name, count = args, 0
+    def run_resetcount(self, name: str, count: Optional[int]) -> str:
+        if count is None:
+            count = 0
         name = normalize(name)
         if not self.data.exists(name):
             raise bot.UserError(f"!{name} doesn't exist")

@@ -34,7 +34,7 @@ class CustomCommandHandlerTest(tests_util.DataHandlerTest):
         self.assert_response("!sheep", "1 sheep jumped the fence.")
         self.assert_response("!sheep", "2 sheep jumped the fence.")
         self.assert_response("!sheep", "3 sheep jumped the fence.")
-        self.assert_response("!resetcount !sheep 0",
+        self.assert_response("!resetcount !sheep",
                              "Reset !sheep counter to 0.", self.mod)
         self.assert_response("!sheep", "1 sheep jumped the fence.")
         self.assert_response("!resetcount !sheep 16",
