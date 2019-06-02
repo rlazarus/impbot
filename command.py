@@ -1,7 +1,11 @@
-from typing import Callable, List, Tuple, Optional, Type, Any
+from typing import (Callable, List, Tuple, Optional, Type, Any, cast, Union,
+                    TypeVar, _GenericAlias)
 
 import bot
 import inspect
+
+
+T = TypeVar("T")
 
 
 class CommandHandler(bot.Handler):
@@ -58,24 +62,56 @@ def _args(argtypes: List[Type], func: Callable, argstring: str) -> List[Any]:
         # For commands with no arguments, silently ignore any other text on
         # the line.
         return []
-    if argtypes == [Optional[str]]:  # TODO: Generalize this further.
-        return [argstring if argstring else None]
-    # Split at most len(argtypes) - 1 times: len(args) <= len(argtypes).
-    args = argstring.split(None, len(argtypes) - 1)
-    if len(args) < len(argtypes):
-        raise UsageError(func)
-    for i, cls in enumerate(argtypes):
-        # If the arg needs to be converted to something other than
-        # string, do that and replace it. If that fails, it's a usage
-        # error.
-        # TODO: Eventually, this won't be enough -- converting to User
-        # requires more context than just the string.
-        if cls != str:
+    # Split at most len(argtypes) - 1 times, so that len(args) <= len(argtypes).
+    argstrings = argstring.split(None, len(argtypes) - 1)
+    args = []
+    for i, argtype in enumerate(argtypes):
+        if i < len(argstrings):
+            # If the arg needs to be converted to something other than string,
+            # do that and replace it. If that fails, it's a usage error.
             try:
-                args[i] = cls(args[i])
-            except ValueError:
+                args.append(_convert_arg(argtype, argstrings[i]))
+            except (TypeError, ValueError):
                 raise UsageError(func)
+        else:
+            # We're off the end of args, so there are fewer args provided than
+            # expected. That's allowed, if all the remaining args are Optional.
+            # In that case, extend it with Nones.
+            if not _is_optional(argtype):
+                raise UsageError(func)
+            args.append(None)
+
     return args
+
+
+def _is_optional(t: Type) -> bool:
+    # Optional[T] is just sugar for Union[T, None], so really what we want to
+    # know is, is the given type a Union that has None as one of its members?
+    # Unfortunately some of this is still undocumented as of 3.7, so this may
+    # need to be updated for future versions.
+    #
+    # The most elegant implementation would be "return isinstance(None, t)" but
+    # subscripted generics like Union don't work with isinstance.
+    if not isinstance(t, _GenericAlias):
+        return False
+    t = cast(_GenericAlias, t)
+    return t.__origin__ == Union and type(None) in t.__args__
+
+
+def _convert_arg(t: T, value: str) -> T:
+    if t == str:
+        return value
+    if isinstance(t, type):
+        return t(value)
+    if isinstance(t, _GenericAlias):
+        t = cast(_GenericAlias, t)
+        if t.__origin__ == Union:
+            for subtype in t.__args__:
+                try:
+                    return _convert_arg(subtype, value)
+                except (TypeError, ValueError):
+                    continue
+        raise ValueError
 
 
 class UsageError(bot.UserError):
@@ -89,5 +125,11 @@ class UsageError(bot.UserError):
             return func.__doc__
         usage = ["!" + func.__name__[len("run_"):]]
         params = inspect.signature(func).parameters.items()
-        usage.extend(f"<{k}>" for k, v in params if v.annotation != bot.Message)
+        for name, param in params:
+            if param.annotation == bot.Message:
+                continue
+            if _is_optional(param.annotation):
+                usage.append(f"[<{name}>]")
+            else:
+                usage.append(f"<{name}>")
         return " ".join(usage)
