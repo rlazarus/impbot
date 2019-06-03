@@ -62,7 +62,8 @@ def _args(argtypes: List[Type], func: Callable, argstring: str) -> List[Any]:
         # For commands with no arguments, silently ignore any other text on
         # the line.
         return []
-    # Split at most len(argtypes) - 1 times, so that len(args) <= len(argtypes).
+    # Split at most len(argtypes) - 1 times, so that
+    # len(argstrings) <= len(argtypes).
     argstrings = argstring.split(None, len(argtypes) - 1)
     args = []
     for i, argtype in enumerate(argtypes):
