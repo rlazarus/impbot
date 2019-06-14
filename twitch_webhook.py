@@ -71,7 +71,7 @@ class TwitchWebhookConnection(bot.Connection):
         topic = f"https://api.twitch.tv/helix/streams?user_id={self.user_id}"
         self.secret = twitch_util.nonce()
         logger.debug(f"Secret: {self.secret}")
-        callback_url = flask.url_for("TwitchWebhookConnection._webhook",
+        callback_url = flask.url_for("TwitchWebhookConnection.webhook",
                                      _external=True)
         response = requests.post(
             "https://api.twitch.tv/helix/webhooks/hub",

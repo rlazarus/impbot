@@ -203,6 +203,11 @@ class Bot:
                 event.reply("Uh oh!")
             return
 
+    def run_connection(self, connection: Connection):
+        if self.flask:
+            self.flask.app_context().push()
+        connection.run(self.process)
+
     def serve_flask(self) -> None:
         logging.info(self.flask.url_map)
         self.flask.app_context().push()
@@ -216,7 +221,7 @@ class Bot:
         conn_threads = []
         for connection in self.connections:
             t = threading.Thread(name=type(connection).__name__,
-                                 target=connection.run, args=[self.process])
+                                 target=self.run_connection, args=[connection])
             t.start()
             conn_threads.append(t)
 
