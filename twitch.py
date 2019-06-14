@@ -56,7 +56,8 @@ if __name__ == "__main__":
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
-        TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu"),
+        TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu",
+                             []),
     ]
     handlers = [
         custom.CustomCommandHandler(),
