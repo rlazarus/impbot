@@ -188,19 +188,20 @@ class Bot:
 
     def handle(self, event: Event) -> None:
         for handler in self.handlers:
-            if handler.check(event):
-                try:
-                    response = handler.run(event)
-                    if response:
-                        event.reply(response)
-                except UserError as e:
-                    event.reply(str(e))
-                except (AdminError, ServerError) as e:
-                    # TODO: Add some kind of direct alerting to the admins,
-                    #  maybe via DMs.
-                    logging.exception(e)
-                    event.reply("Uh oh!")
-                return
+            if not handler.check(event):
+                continue
+            try:
+                response = handler.run(event)
+                if response:
+                    event.reply(response)
+            except UserError as e:
+                event.reply(str(e))
+            except (AdminError, ServerError) as e:
+                # TODO: Add some kind of direct alerting to the admins, maybe
+                #  via DMs.
+                logging.exception(e)
+                event.reply("Uh oh!")
+            return
 
     def serve_flask(self) -> None:
         logging.info(self.flask.url_map)
