@@ -47,7 +47,7 @@ class TwitchWebhookConnection(bot.Connection):
         self.user_id = twitch_util.get_channel_id(streamer_username)
         self.on_event: bot.EventCallback = None  # Set in run().
         self.last_data: StreamData = _stream_data(self.user_id)
-        self.shutdown = threading.Event()
+        self.shutdown_event = threading.Event()
 
     @property
     def url_rules(self):
@@ -62,7 +62,7 @@ class TwitchWebhookConnection(bot.Connection):
         self._subscribe()
         # We don't need to do anything -- 100% of the work happens in the web
         # handler now. Just wait until it's time to shut down, then return.
-        self.shutdown.wait()
+        self.shutdown_event.wait()
 
     def _subscribe(self) -> None:
         # TODO: Check existing subscriptions, skip if we're already subscribed.
@@ -148,7 +148,7 @@ class TwitchWebhookConnection(bot.Connection):
         return flask.Response(status=200)
 
     def shutdown(self) -> None:
-        self.shutdown.set()
+        self.shutdown_event.set()
 
 
 def _stream_data(user_id: int) -> StreamData:
