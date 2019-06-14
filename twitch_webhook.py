@@ -1,12 +1,12 @@
 import hashlib
 import logging
 import sys
+import threading
 from typing import Optional, Dict, Union
 
 import attr
 import flask
 import requests
-from werkzeug import serving
 
 import bot
 import hello
@@ -43,14 +43,15 @@ class StreamChangedEvent(TwitchWebhookEvent):
 
 
 class TwitchWebhookConnection(bot.Connection):
-    def __init__(self, streamer_username: str, host: str, port: int) -> None:
+    def __init__(self, streamer_username: str) -> None:
         self.user_id = twitch_util.get_channel_id(streamer_username)
         self.on_event: bot.EventCallback = None  # Set in run().
         self.last_data: StreamData = _stream_data(self.user_id)
-        # TODO: Move this out to Bot, there should only be one of it.
-        self.flask = flask.Flask(__name__)
-        self.flask.config["SERVER_NAME"] = f"{host}:{port}"
-        self.flask_server = serving.make_server(host, port, self.flask)
+        self.shutdown = threading.Event()
+
+    @property
+    def url_rules(self):
+        return [("/twitch_webhook", self.webhook, ["GET", "POST"])]
 
     def say(self, text: str) -> None:
         raise NotImplementedError("TwitchWebhookConnection doesn't have chat"
@@ -58,17 +59,10 @@ class TwitchWebhookConnection(bot.Connection):
 
     def run(self, on_event: bot.EventCallback) -> None:
         self.on_event = on_event
-        self.flask.add_url_rule("/twitch_webhook", "webhook", self._webhook,
-                                methods=["GET", "POST"])
-
-        # Technically this is a little racy, since the Flask server might not be
-        # listening for an acknowledgement by the time Twitch tries to send it.
-        # But that's okay -- in practice it does start up in time, and if not,
-        # Twitch will retry.
         self._subscribe()
-
-        self.flask.app_context().push()
-        self.flask_server.serve_forever()
+        # We don't need to do anything -- 100% of the work happens in the web
+        # handler now. Just wait until it's time to shut down, then return.
+        self.shutdown.wait()
 
     def _subscribe(self) -> None:
         # TODO: Check existing subscriptions, skip if we're already subscribed.
@@ -77,8 +71,8 @@ class TwitchWebhookConnection(bot.Connection):
         topic = f"https://api.twitch.tv/helix/streams?user_id={self.user_id}"
         self.secret = twitch_util.nonce()
         logger.debug(f"Secret: {self.secret}")
-        with self.flask.app_context():
-            callback_url = flask.url_for("webhook", _external=True)
+        callback_url = flask.url_for("TwitchWebhookConnection._webhook",
+                                     _external=True)
         response = requests.post(
             "https://api.twitch.tv/helix/webhooks/hub",
             json={"hub.callback": callback_url,
@@ -94,7 +88,7 @@ class TwitchWebhookConnection(bot.Connection):
             logger.error(response.text)
             raise bot.ServerError(response)
 
-    def _webhook(self) -> Union[str, flask.Response]:
+    def webhook(self) -> Union[str, flask.Response]:
         if flask.request.method == "GET":
             logger.debug(f"GET {flask.request.url}")
             logger.debug(flask.request.headers)
@@ -154,7 +148,7 @@ class TwitchWebhookConnection(bot.Connection):
         return flask.Response(status=200)
 
     def shutdown(self) -> None:
-        self.flask_server.shutdown()
+        self.shutdown.set()
 
 
 def _stream_data(user_id: int) -> StreamData:
@@ -187,11 +181,11 @@ if __name__ == "__main__":
     rootLogger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
-        TwitchWebhookConnection("Shrdluuu", "127.0.0.1", 5000),
+        TwitchWebhookConnection("Shrdluuu"),
         stdio.StdioConnection()
     ]
     handlers = [
         hello.HelloHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", connections, handlers)
+    b = bot.Bot("127.0.0.1", 5000, "impbot.sqlite", connections, handlers)
     b.main()

@@ -70,5 +70,5 @@ if __name__ == "__main__":
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", [conn], handlers)
+    b = bot.Bot(None, None, "impbot.sqlite", [conn], handlers)
     b.main()
