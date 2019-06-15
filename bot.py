@@ -1,4 +1,3 @@
-import itertools
 import logging
 import queue
 import sys
@@ -7,8 +6,6 @@ from abc import ABC, abstractmethod
 from typing import Callable, Optional, Dict, Sequence
 
 import attr
-import flask
-from werkzeug import serving
 
 import data
 
@@ -129,8 +126,7 @@ class Handler(ABC):
 
 
 class Bot:
-    def __init__(self, web_host: Optional[str], web_port: Optional[int],
-                 db: Optional[str], connections: Sequence[Connection],
+    def __init__(self, db: Optional[str], connections: Sequence[Connection],
                  handlers: Sequence[Handler]) -> None:
         self.connections = connections
 
@@ -149,28 +145,17 @@ class Bot:
         self.handlers = handlers
         self._queue = queue.Queue()
 
-        if web_host and web_port:
-            self.flask = flask.Flask(__name__)
-            self.flask.debug = True
-            self.flask.use_debugger = True
-            self.flask.config["SERVER_NAME"] = f"{web_host}:{web_port}"
-            self.flask_server = serving.make_server(web_host, web_port,
-                                                    self.flask)
-
-            for i in itertools.chain(self.handlers, self.connections):
-                for url, view, methods in getattr(i, "url_rules", []):
-                    endpoint = f"{type(i).__name__}.{view.__name__}"
-                    self.flask.add_url_rule(url, endpoint, view,
-                                            methods=methods)
+        import web
+        ws = [c for c in connections if isinstance(c, web.WebServerConnection)]
+        if ws:
+            self.web = ws[0]
+            self.web.init_routes(self.connections, self.handlers)
         else:
-            self.flask = None
+            self.web = None
 
-        # Initialize these threads here, but we'll start them in main().
+        # Initialize the handler thread here, but we'll start it in main().
         self._handler_thread = threading.Thread(
             name="Event handler", target=self.handle_queue)
-        if self.flask:
-            self._flask_thread = threading.Thread(
-                name="Flask", target=self.serve_flask)
 
     def process(self, event: Event) -> None:
         self._queue.put(event)
@@ -204,20 +189,13 @@ class Bot:
             return
 
     def run_connection(self, connection: Connection):
-        if self.flask:
-            self.flask.app_context().push()
+        if self.web:
+            self.web.flask.app_context().push()
         connection.run(self.process)
-
-    def serve_flask(self) -> None:
-        logging.info(self.flask.url_map)
-        self.flask.app_context().push()
-        self.flask_server.serve_forever()
 
     def main(self) -> None:
         logger.info("Starting...")
         self._handler_thread.start()
-        if self.flask:
-            self._flask_thread.start()
         conn_threads = []
         for connection in self.connections:
             t = threading.Thread(name=type(connection).__name__,
@@ -232,10 +210,6 @@ class Bot:
             logger.info("Exiting...")
             self._queue.put(Shutdown())
             self._handler_thread.join()
-
-        if self.flask:
-            self.flask_server.shutdown()
-            self._flask_thread.join()
 
         for connection in self.connections:
             connection.shutdown()

@@ -13,6 +13,7 @@ import hello
 import secret
 import stdio
 import twitch_util
+from web import WebServerConnection
 
 logger = logging.getLogger(__name__)
 
@@ -181,11 +182,12 @@ if __name__ == "__main__":
     rootLogger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
+        WebServerConnection("127.0.0.1", 5000),
         TwitchWebhookConnection("Shrdluuu"),
         stdio.StdioConnection()
     ]
     handlers = [
         hello.HelloHandler(),
     ]
-    b = bot.Bot("127.0.0.1", 5000, "impbot.sqlite", connections, handlers)
+    b = bot.Bot("impbot.sqlite", connections, handlers)
     b.main()
