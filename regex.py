@@ -3,10 +3,10 @@ import re
 import sre_compile
 from typing import Optional, Mapping
 
-import bot
+import base
 
 
-class RegexHandler(bot.Handler):
+class RegexHandler(base.Handler):
     def __init__(self, patterns: Mapping[str, str]) -> None:
         super().__init__()
         try:
@@ -16,10 +16,10 @@ class RegexHandler(bot.Handler):
             self.patterns = collections.OrderedDict(
                 (re.compile(k), v) for k, v in patterns.items())
         except sre_compile.error as e:
-            raise bot.AdminError(e)
+            raise base.AdminError(e)
         self._action: Optional[str] = None
 
-    def check(self, message: bot.Message) -> bool:
+    def check(self, message: base.Message) -> bool:
         for pattern, action in self.patterns.items():
             match = pattern.search(message.text)
             if match:
@@ -28,7 +28,7 @@ class RegexHandler(bot.Handler):
         self._action = None
         return False
 
-    def run(self, message: bot.Message) -> Optional[str]:
+    def run(self, message: base.Message) -> Optional[str]:
         # This is super not thread-safe -- we rely on calling run() exactly once
         # each time check() returns True, with nothing happening in between.
         action = self._action

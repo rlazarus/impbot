@@ -8,6 +8,7 @@ import attr
 import flask
 import requests
 
+import base
 import bot
 import hello
 import secret
@@ -22,7 +23,7 @@ OFFLINE: StreamData = dict()
 
 
 @attr.s(auto_attribs=True)
-class TwitchWebhookEvent(bot.Event):
+class TwitchWebhookEvent(base.Event):
     pass
 
 
@@ -43,10 +44,10 @@ class StreamChangedEvent(TwitchWebhookEvent):
     game: Optional[str]
 
 
-class TwitchWebhookConnection(bot.Connection):
+class TwitchWebhookConnection(base.Connection):
     def __init__(self, streamer_username: str) -> None:
         self.user_id = twitch_util.get_channel_id(streamer_username)
-        self.on_event: bot.EventCallback = None  # Set in run().
+        self.on_event: Optional[base.EventCallback] = None  # Set in run().
         self.last_data: StreamData = _stream_data(self.user_id)
         self.shutdown_event = threading.Event()
 
@@ -58,7 +59,7 @@ class TwitchWebhookConnection(bot.Connection):
         raise NotImplementedError("TwitchWebhookConnection doesn't have chat"
                                   "functionality -- use TwitchChatConnection.")
 
-    def run(self, on_event: bot.EventCallback) -> None:
+    def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event
         self._subscribe()
         # We don't need to do anything -- 100% of the work happens in the web
@@ -87,7 +88,7 @@ class TwitchWebhookConnection(bot.Connection):
             logger.error(response.status_code)
             logger.error(response.headers)
             logger.error(response.text)
-            raise bot.ServerError(response)
+            raise base.ServerError(response)
 
     def webhook(self) -> Union[str, flask.Response]:
         if flask.request.method == "GET":
@@ -104,7 +105,7 @@ class TwitchWebhookConnection(bot.Connection):
                 # TODO: The API docs don't have an example of a rejection notice
                 #       and I couldn't manage to trigger one, so this is a
                 #       guess.
-                raise bot.ServerError(f"Webhook subscription failed.")
+                raise base.ServerError(f"Webhook subscription failed.")
 
         logger.debug(flask.request.headers)
         logger.debug(flask.request.json)
@@ -157,7 +158,7 @@ def _stream_data(user_id: int) -> StreamData:
                             params={"user_id": user_id},
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
     if response.status_code != 200:
-        raise bot.ServerError(response)
+        raise base.ServerError(response)
     body = response.json()
     if not body["data"]:
         return OFFLINE
@@ -169,10 +170,10 @@ def _game_name(game_id: int) -> str:
                             params={"id": game_id},
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
     if response.status_code != 200:
-        raise bot.ServerError(response)
+        raise base.ServerError(response)
     body = response.json()
     if not body["data"]:
-        raise bot.ServerError(f"No Game with ID {game_id}")
+        raise base.ServerError(f"No Game with ID {game_id}")
     return body["data"][0]["name"]
 
 

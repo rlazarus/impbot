@@ -2,6 +2,7 @@ import unittest
 from typing import Union
 from unittest import mock
 
+import base
 import bot
 import command
 
@@ -21,16 +22,16 @@ class AnotherFooHandler(command.CommandHandler):
         pass
 
 
-class OneEventConnection(bot.Connection):
-    def __init__(self, event: Union[str, bot.Event]) -> None:
+class OneEventConnection(base.Connection):
+    def __init__(self, event: Union[str, base.Event]) -> None:
         if isinstance(event, str):
-            event = bot.Message(bot.User("username"), event, self.say)
+            event = base.Message(base.User("username"), event, self.say)
         self.event = event
 
     def say(self, text: str) -> None:
         pass
 
-    def run(self, on_event: bot.EventCallback) -> None:
+    def run(self, on_event: base.EventCallback) -> None:
         on_event(self.event)
 
     def shutdown(self) -> None:
@@ -39,7 +40,7 @@ class OneEventConnection(bot.Connection):
 
 class BotTest(unittest.TestCase):
     def init(self, handlers):
-        conn: bot.Connection = mock.Mock(spec=bot.Connection)
+        conn: base.Connection = mock.Mock(spec=base.Connection)
         return bot.Bot(None, [conn], handlers)
 
     def testInit(self):
@@ -53,21 +54,21 @@ class BotTest(unittest.TestCase):
     def testHandle(self):
         b = self.init([FooHandler(), BarHandler()])
         reply = mock.Mock()
-        b.handle(bot.Message(bot.User("username"), "!foo", reply))
+        b.handle(base.Message(base.User("username"), "!foo", reply))
         reply.assert_called_with("foo!")
 
         reply.reset_mock()
-        b.handle(bot.Message(bot.User("username"), "not !foo", reply))
+        b.handle(base.Message(base.User("username"), "not !foo", reply))
         reply.assert_not_called()
 
     def testQuit(self):
-        handler = mock.Mock(spec=bot.Handler)
+        handler = mock.Mock(spec=base.Handler)
         b = bot.Bot(None, [OneEventConnection(bot.Shutdown())], [handler])
         b.main()
         handler.check.assert_not_called()
 
     def testMultipleConnections(self):
-        handler = mock.Mock(spec=bot.Handler)
+        handler = mock.Mock(spec=base.Handler)
         events = ["one", "two", bot.Shutdown()]
         b = bot.Bot(None, [OneEventConnection(e) for e in events], [handler])
         b.main()

@@ -10,7 +10,7 @@ from typing import Optional
 
 import requests
 
-import bot
+import base
 import command
 import cooldown
 import data
@@ -105,7 +105,7 @@ class HueClient:
         if not (self.data.exists("access_token") and
                 self.data.exists("refresh_token")):
             # TODO: Add a first-time setup flow. For now, they're set manually.
-            raise bot.AdminError("access_token and refresh_token not in DB")
+            raise base.AdminError("access_token and refresh_token not in DB")
 
         # First, refresh if necessary.
         expiration_timestamp = float(self.data.get("access_token_expires", "0"))
@@ -159,19 +159,19 @@ class HueHandler(command.CommandHandler):
         super().__init__()
         self.hue_client = hue_client
 
-    def run_lightson(self, message: bot.Message) -> Optional[str]:
+    def run_lightson(self, message: base.Message) -> Optional[str]:
         if not message.user.admin:
             return None
         self.hue_client.enabled = True
         return "twoheaDogchamp"
 
-    def run_lightsoff(self, message: bot.Message) -> Optional[str]:
+    def run_lightsoff(self, message: base.Message) -> Optional[str]:
         if not message.user.admin:
             return None
         self.hue_client.enabled = False
         return "THGSleepy"
 
-    def run_lights(self, message: bot.Message, scene: Optional[str]) -> \
+    def run_lights(self, message: base.Message, scene: Optional[str]) -> \
             Optional[str]:
         if not self.hue_client.enabled:
             return None
@@ -203,30 +203,30 @@ class HueHandler(command.CommandHandler):
         self.hue_client.blink()
 
 
-class TwitchEventBlinkHandler(bot.Handler):
+class TwitchEventBlinkHandler(base.Handler):
     def __init__(self, hue_client: HueClient) -> None:
         super().__init__()
         self.hue_client = hue_client
 
-    def check(self, event: bot.Event) -> bool:
+    def check(self, event: base.Event) -> bool:
         return isinstance(event, twitch_event.TwitchEvent)
 
-    def run(self, event: bot.Event) -> None:
+    def run(self, event: base.Event) -> None:
         if self.hue_client.enabled:
             self.hue_client.blink()
 
 
-class TwitchEnableDisableHandler(bot.Handler):
+class TwitchEnableDisableHandler(base.Handler):
     def __init__(self, hue_client: HueClient,
                  chat_conn: twitch.TwitchChatConnection) -> None:
         super().__init__()
         self.hue_client = hue_client
         self.chat_conn = chat_conn
 
-    def check(self, event: bot.Event) -> bool:
+    def check(self, event: base.Event) -> bool:
         return isinstance(event, twitch_webhook.TwitchWebhookEvent)
 
-    def run(self, event: bot.Event) -> None:
+    def run(self, event: base.Event) -> None:
         # TODO: Refactor so the replies here can be returned instead of having
         #   a reference to a TwitchChatConnection.
         if isinstance(event, twitch_webhook.StreamStartedEvent):
@@ -258,5 +258,5 @@ def _md5(s: str) -> str:
     return m.hexdigest()
 
 
-class HueError(bot.ServerError):
+class HueError(base.ServerError):
     pass

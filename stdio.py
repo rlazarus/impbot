@@ -1,23 +1,24 @@
 import threading
 
+import base
 import bot
 import custom
 import hello
 import roulette
 
 
-class StdioConnection(bot.Connection):
+class StdioConnection(base.Connection):
     def __init__(self) -> None:
         self._canceled = threading.Event()
 
     def say(self, text: str) -> None:
         print(text)
 
-    def run(self, on_event: bot.EventCallback) -> None:
+    def run(self, on_event: base.EventCallback) -> None:
         # Because of the way input() works, we only exit the loop after being
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():
-            m = bot.Message(bot.User("stdin"), input("> "), self.say)
+            m = base.Message(base.User("stdin"), input("> "), self.say)
             on_event(m)
 
     def shutdown(self) -> None:

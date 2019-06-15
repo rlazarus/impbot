@@ -5,6 +5,7 @@ from typing import Optional, Set, List
 import attr
 from irc import client
 
+import base
 import bot
 import custom
 import hello
@@ -23,7 +24,7 @@ class TwitchChatConnection(irc_connection.IrcConnection):
                          capabilities=["twitch.tv/tags"])
         self.admins = admins
 
-    def _user(self, event: client.Event) -> bot.User:
+    def _user(self, event: client.Event) -> base.User:
         tags = {i['key']: i['value'] for i in event.tags}
         if "badges" in tags and tags["badges"]:
             # Each badge is in the form <name>/<number> (e.g. number of months
@@ -39,7 +40,7 @@ class TwitchChatConnection(irc_connection.IrcConnection):
 
 
 @attr.s(frozen=True)
-class TwitchUser(bot.User):
+class TwitchUser(base.User):
     display_name: Optional[str] = attr.ib(cmp=False, default=None)
     # The streamer doesn't have a mod badge, but they have a superset of
     # mod privileges, so this is true for them too.

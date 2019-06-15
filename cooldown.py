@@ -2,7 +2,7 @@ import datetime
 import collections
 from typing import Optional, Dict
 
-import bot
+import base
 
 
 class Cooldown(object):
@@ -31,15 +31,15 @@ class GlobalAndUserCooldowns(object):
             user_duration = datetime.timedelta(0)
         self.global_cd = Cooldown(global_duration)
         self.user_duration = user_duration
-        self.user_cds: Dict[bot.User, Cooldown] = collections.defaultdict(
+        self.user_cds: Dict[base.User, Cooldown] = collections.defaultdict(
             lambda: Cooldown(user_duration))
 
-    def peek(self, user: bot.User) -> bool:
+    def peek(self, user: base.User) -> bool:
         global_okay = self.global_cd.peek()
         user_okay = user not in self.user_cds or self.user_cds[user].peek()
         return global_okay and user_okay
 
-    def fire(self, user: bot.User) -> bool:
+    def fire(self, user: base.User) -> bool:
         # Peeking first is important: we only update the timestamp on either
         # cooldown if both will pass.
         if not (self.peek(user) and self.global_cd.peek()):

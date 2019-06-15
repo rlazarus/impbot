@@ -5,7 +5,7 @@ import string
 
 import requests
 
-import bot
+import base
 import secret
 
 
@@ -20,10 +20,10 @@ def _get_channel_id(streamer_username: str) -> int:
                             params={"login": streamer_username},
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
     if response.status_code != 200:
-        raise bot.ServerError(response)
+        raise base.ServerError(response)
     body = json.loads(response.text)
     if not body["data"]:
-        raise bot.AdminError(f"No Twitch channel '{streamer_username}'")
+        raise base.AdminError(f"No Twitch channel '{streamer_username}'")
     return int(body["data"][0]["id"])
 
 

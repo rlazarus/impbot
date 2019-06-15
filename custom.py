@@ -1,6 +1,6 @@
-from typing import Dict, Optional
+from typing import Optional
 
-import bot
+import base
 import command
 import cooldown
 import datetime
@@ -29,7 +29,7 @@ class Command(object):
 
 
 class CustomCommandHandler(command.CommandHandler):
-    def check(self, message: bot.Message) -> bool:
+    def check(self, message: base.Message) -> bool:
         if super().check(message):
             return True
         if not message.text.startswith("!"):
@@ -37,14 +37,14 @@ class CustomCommandHandler(command.CommandHandler):
         name = normalize(message.text.split(None, 1)[0])
         return self.data.exists(name)
 
-    def run(self, message: bot.Message) -> Optional[str]:
+    def run(self, message: base.Message) -> Optional[str]:
         # If CommandHandler's check() passes, this is a built-in like !addcom,
         # so let CommandHandler's run() dispatch to it.
         if super().check(message):
             # As it happens, all the builtins are for mods only, so we'll do
             # that check here. TODO: Real per-command ACLs.
             if not (message.user.moderator or message.user.admin):
-                raise bot.UserError("You can't do that.")
+                raise base.UserError("You can't do that.")
             return super().run(message)
         # Otherwise, it's a custom command so we do our own thing.
         name = normalize(message.text.split(None, 1)[0])
@@ -58,9 +58,9 @@ class CustomCommandHandler(command.CommandHandler):
     def run_addcom(self, name: str, text: str) -> str:
         name = normalize(name)
         if self.data.exists(name):
-            raise bot.UserError(f"!{name} already exists.")
+            raise base.UserError(f"!{name} already exists.")
         if hasattr(self, "run_" + name):
-            raise bot.UserError(f"Can't use !{name} for a command.")
+            raise base.UserError(f"Can't use !{name} for a command.")
         self.data.set(name, repr(Command(name, text)))
         return f"Added !{name}."
 
@@ -78,7 +78,7 @@ class CustomCommandHandler(command.CommandHandler):
     def run_delcom(self, name: str) -> str:
         name = normalize(name)
         if not self.data.exists(name):
-            raise bot.UserError(f"!{name} doesn't exist.")
+            raise base.UserError(f"!{name} doesn't exist.")
         self.data.unset(name)
         return f"Deleted !{name}."
 
@@ -87,7 +87,7 @@ class CustomCommandHandler(command.CommandHandler):
             count = 0
         name = normalize(name)
         if not self.data.exists(name):
-            raise bot.UserError(f"!{name} doesn't exist")
+            raise base.UserError(f"!{name} doesn't exist")
         c = eval(self.data.get(name))
         c.count = count
         self.data.set(name, repr(c))

@@ -10,7 +10,7 @@ import attr
 import requests
 import websockets
 
-import bot
+import base
 import data
 import secret
 import twitch_util
@@ -18,8 +18,8 @@ import twitch_util
 logger = logging.getLogger(__name__)
 
 @attr.s(auto_attribs=True)
-class TwitchEvent(bot.Event):
-    user: Optional[bot.User]  # None for anonymous events.
+class TwitchEvent(base.Event):
+    user: Optional[base.User]  # None for anonymous events.
 
 
 @attr.s(auto_attribs=True)
@@ -43,7 +43,7 @@ class GiftSubscription(Subscription):
     recipient_username: str
 
 
-class TwitchEventConnection(bot.Connection):
+class TwitchEventConnection(base.Connection):
     def __init__(self, streamer_username: str, redirect_uri: str) -> None:
         self.data = data.Namespace("TwitchEventConnection")
         self.streamer_username = streamer_username
@@ -60,7 +60,7 @@ class TwitchEventConnection(bot.Connection):
         raise NotImplementedError("TwitchEventConnection doesn't have chat"
                                   "functionality -- use TwitchChatConnection.")
 
-    def run(self, on_event: bot.EventCallback) -> None:
+    def run(self, on_event: base.EventCallback) -> None:
         if not self.data.exists("access_token"):
             self.oauth_authorize()
 
@@ -68,7 +68,7 @@ class TwitchEventConnection(bot.Connection):
         # into async code here.
         self.event_loop.run_until_complete(self.run_coro(on_event))
 
-    async def run_coro(self, on_event: bot.EventCallback) -> None:
+    async def run_coro(self, on_event: base.EventCallback) -> None:
         while not self.shutdown_event.is_set():
             async with websockets.connect("wss://pubsub-edge.twitch.tv",
                                           close_timeout=1) as self.websocket:
@@ -77,7 +77,7 @@ class TwitchEventConnection(bot.Connection):
                     self.oauth_refresh()
                     response = await self.subscribe(self.websocket)
                     if response["error"] == "ERR_BADAUTH":
-                        raise bot.ServerError("Two BADAUTH errors, giving up.")
+                        raise base.ServerError("Two BADAUTH errors, giving up.")
 
                 ping_task = asyncio.create_task(_ping_forever(self.websocket))
 
@@ -119,10 +119,10 @@ class TwitchEventConnection(bot.Connection):
             if response["nonce"] == nonce:
                 break
         else:
-            raise bot.ServerError("Websocket closed without response.")
+            raise base.ServerError("Websocket closed without response.")
 
         if response["type"] != "RESPONSE":
-            raise bot.ServerError(f"Bad pubsub response: {response}")
+            raise base.ServerError(f"Bad pubsub response: {response}")
         return response
 
     def oauth_authorize(self) -> None:
@@ -159,10 +159,10 @@ class TwitchEventConnection(bot.Connection):
                 **params
             })
         if response.status_code != 200:
-            raise bot.ServerError(response)
+            raise base.ServerError(response)
         body = json.loads(response.text)
         if "error" in body:
-            raise bot.ServerError(body)
+            raise base.ServerError(body)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
 
@@ -173,26 +173,26 @@ class TwitchEventConnection(bot.Connection):
                                              self.event_loop)
 
 
-def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
+def handle_message(on_event: base.EventCallback, body: Dict[str, Any]):
     if body["type"] == "PONG":
         return
     if body["type"] != "MESSAGE":
-        raise bot.ServerError(body)
+        raise base.ServerError(body)
     topic = body["data"]["topic"]
     msg = json.loads(body["data"]["message"])
     if "-bits-" in topic:
         mdata = msg["data"]
-        user = bot.User(mdata["user_name"]) if "user_name" in mdata else None
+        user = base.User(mdata["user_name"]) if "user_name" in mdata else None
         on_event(Bits(user, mdata["bits_used"], mdata["chat_message"]))
     elif "-subscribe-" in topic:
         if "recipient_user_name" in msg:
-            user = bot.User(msg["user_name"]) if "user_name" in msg else None
+            user = base.User(msg["user_name"]) if "user_name" in msg else None
             on_event(GiftSubscription(
                 user, SUB_PLANS[msg["sub_plan"]], msg["months"], None,
                 msg["sub_message"]["message"], msg["recipient_user_name"]))
         else:
             on_event(Subscription(
-                bot.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
+                base.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
                 msg["cumulative_months"], msg.get("streak_months", None),
                 msg["sub_message"]["message"]))
 

@@ -4,13 +4,14 @@ from typing import Optional, List
 
 from irc import client
 
+import base
 import bot
 import custom
 import hello
 import roulette
 
 
-class IrcConnection(bot.Connection, client.SimpleIRCClient):
+class IrcConnection(base.Connection, client.SimpleIRCClient):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
                  password: Optional[str] = None,
                  capabilities: Optional[List[str]] = None) -> None:
@@ -21,14 +22,14 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
         self.channel = channel
         self.password = password
         self.capabilities = capabilities if capabilities is not None else []
-        self.on_event: bot.EventCallback = None
+        self.on_event: base.EventCallback = None
 
     # bot.Connection overrides:
 
     def say(self, text: str) -> None:
         self.connection.privmsg(self.channel, text)
 
-    def run(self, on_event: bot.EventCallback) -> None:
+    def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event
         self.connect(self.host, self.port, self.nickname, self.password)
         # SimpleIRCClient.start() never returns even after disconnection, so
@@ -51,12 +52,12 @@ class IrcConnection(bot.Connection, client.SimpleIRCClient):
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
         user = self._user(event)
-        self.on_event(bot.Message(user, event.arguments[0], self.say))
+        self.on_event(base.Message(user, event.arguments[0], self.say))
 
     # Hook for subclasses to override:
 
-    def _user(self, event: client.Event) -> bot.User:
-        return bot.User(event.source.nick)
+    def _user(self, event: client.Event) -> base.User:
+        return base.User(event.source.nick)
 
 
 if __name__ == "__main__":

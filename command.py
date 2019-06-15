@@ -1,14 +1,14 @@
 from typing import (Callable, List, Tuple, Optional, Type, Any, cast, Union,
                     TypeVar, _GenericAlias)
 
-import bot
+import base
 import inspect
 
 
 T = TypeVar("T")
 
 
-class CommandHandler(bot.Handler):
+class CommandHandler(base.Handler):
     def __init__(self) -> None:
         super().__init__()
         self.commands = {"!" + i[len("run_"):] for i in dir(self)
@@ -27,20 +27,20 @@ class CommandHandler(bot.Handler):
             return None
         return func, argstring
 
-    def check(self, message: bot.Message) -> bool:
+    def check(self, message: base.Message) -> bool:
         # TODO: Replace this with proper type handling.
-        if not isinstance(message, bot.Message):
+        if not isinstance(message, base.Message):
             return False
         return self._func_argstring(message) is not None
 
-    def run(self, message: bot.Message) -> str:
+    def run(self, message: base.Message) -> str:
         func, argstring = self._func_argstring(message)
         params = inspect.signature(func).parameters
         argtypes = [p.annotation for p in params.values()]
         # Optionally, the first parameter to a handler function can be special:
         # it can take the bot.Message directly, rather than an argument parsed
         # from the message.
-        pass_message = argtypes and argtypes[0] == bot.Message
+        pass_message = argtypes and argtypes[0] == base.Message
         if pass_message:
             # If the function takes a Message, the args we'll parse are the
             # parameters after it.
@@ -51,7 +51,7 @@ class CommandHandler(bot.Handler):
                 return func(message, *args)
             else:
                 return func(*args)
-        except bot.UserError as e:
+        except base.UserError as e:
             if str(e):
                 raise e
             raise UsageError(func)
@@ -115,7 +115,7 @@ def _convert_arg(t: T, value: str) -> T:
         raise ValueError
 
 
-class UsageError(bot.UserError):
+class UsageError(base.UserError):
     def __init__(self, func: Callable):
         assert func.__name__.startswith("run_")
         super().__init__("Usage: " + self._usage(func))
@@ -127,7 +127,7 @@ class UsageError(bot.UserError):
         usage = ["!" + func.__name__[len("run_"):]]
         params = inspect.signature(func).parameters.items()
         for name, param in params:
-            if param.annotation == bot.Message:
+            if param.annotation == base.Message:
                 continue
             if _is_optional(param.annotation):
                 usage.append(f"[<{name}>]")

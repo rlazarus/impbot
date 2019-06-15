@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import unittest
 
-import bot
+import base
 import regex
 import tests_util
 
@@ -30,7 +30,7 @@ class TestRegexInteresting(tests_util.HandlerTest):
 
 class TestBrokenRegex(unittest.TestCase):
     def test_broken(self):
-        self.assertRaises(bot.AdminError, regex.RegexHandler, {'(': ''})
+        self.assertRaises(base.AdminError, regex.RegexHandler, {'(': ''})
 
 
 class TestPatternOrder(tests_util.HandlerTest):

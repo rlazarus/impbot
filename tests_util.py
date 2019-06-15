@@ -3,7 +3,7 @@ import unittest
 from typing import Callable, Optional
 from unittest import mock
 
-import bot
+import base
 import data
 
 
@@ -11,18 +11,18 @@ class HandlerTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.reply: Callable[[str], None] = mock.Mock()
-        self.handler: bot.Handler = None
+        self.handler: base.Handler = None
 
-    def _message(self, input: str, user: Optional[bot.User] = None):
+    def _message(self, input: str, user: Optional[base.User] = None):
         if not user:
-            user = bot.User("username")
-        return bot.Message(user, input, self.reply)
+            user = base.User("username")
+        return base.Message(user, input, self.reply)
 
     def assert_no_trigger(self, input: str) -> None:
         self.assertFalse(self.handler.check(self._message(input)))
 
     def assert_response(self, input: str, output: str,
-                        user: Optional[bot.User] = None) -> None:
+                        user: Optional[base.User] = None) -> None:
         message = self._message(input, user)
         self.assertTrue(self.handler.check(message))
         self.assertEqual(self.handler.run(message), output)
@@ -30,7 +30,7 @@ class HandlerTest(unittest.TestCase):
     def assert_error(self, input: str, output: str):
         message = self._message(input)
         self.assertTrue(self.handler.check(message))
-        with self.assertRaises(bot.UserError) as ar:
+        with self.assertRaises(base.UserError) as ar:
             self.handler.run(message)
         self.assertEqual(str(ar.exception), output)
 
@@ -55,7 +55,7 @@ class DataHandlerTest(HandlerTest):
         self.conn.close()
 
 
-class Moderator(bot.User):
+class Moderator(base.User):
     @property
     def moderator(self) -> bool:
         return True
