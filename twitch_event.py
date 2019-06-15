@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import threading
 from typing import Optional, Dict, Any
 from urllib import parse
 
@@ -49,6 +50,9 @@ class TwitchEventConnection(bot.Connection):
         self.redirect_uri = redirect_uri
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        # threading.Event, not asyncio.Event: We need it for communicating
+        # between threads, not between coroutines.
+        self.shutdown_event = threading.Event()
 
         asyncio.set_event_loop(self.event_loop)
 
@@ -65,23 +69,30 @@ class TwitchEventConnection(bot.Connection):
         self.event_loop.run_until_complete(self.run_coro(on_event))
 
     async def run_coro(self, on_event: bot.EventCallback) -> None:
-        url = "wss://pubsub-edge.twitch.tv"
-        async with websockets.connect(url, close_timeout=1) as self.websocket:
-            response = await self.subscribe(self.websocket)
-            if response["error"] == "ERR_BADAUTH":
-                self.oauth_refresh()
+        while not self.shutdown_event.is_set():
+            async with websockets.connect("wss://pubsub-edge.twitch.tv",
+                                          close_timeout=1) as self.websocket:
                 response = await self.subscribe(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
-                    raise bot.ServerError("Two BADAUTH errors, giving up.")
+                    self.oauth_refresh()
+                    response = await self.subscribe(self.websocket)
+                    if response["error"] == "ERR_BADAUTH":
+                        raise bot.ServerError("Two BADAUTH errors, giving up.")
 
-            asyncio.create_task(_ping_forever(self.websocket))
+                ping_task = asyncio.create_task(_ping_forever(self.websocket))
 
-            try:
-                async for message in self.websocket:
-                    logger.debug(message)
-                    handle_message(on_event, json.loads(message))
-            except websockets.ConnectionClosed:
-                pass
+                try:
+                    async for message in self.websocket:
+                        logger.debug(message)
+                        body = json.loads(message)
+                        if body["type"] == "RECONNECT":
+                            logger.info("Reconnecting by request...")
+                            break
+                        handle_message(on_event, body)
+                except websockets.ConnectionClosed:
+                    pass
+
+                ping_task.cancel()
 
     async def subscribe(self, websocket: websockets.WebSocketClientProtocol) \
             -> Dict[str, str]:
@@ -156,6 +167,7 @@ class TwitchEventConnection(bot.Connection):
         self.data.set("refresh_token", body["refresh_token"])
 
     def shutdown(self) -> None:
+        self.shutdown_event.set()
         if self.websocket:
             asyncio.run_coroutine_threadsafe(self.websocket.close(),
                                              self.event_loop)
@@ -186,11 +198,14 @@ def handle_message(on_event: bot.EventCallback, body: Dict[str, Any]):
 
 
 async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
-    while websocket.open:
-        logger.debug("Pubsub PING")
-        await websocket.send(json.dumps({"type": "PING"}))
-        # Add some jitter, but ping at least every five minutes.
-        await asyncio.sleep(295 + random.randint(-5, 5))
+    try:
+        while websocket.open:
+            logger.debug("Pubsub PING")
+            await websocket.send(json.dumps({"type": "PING"}))
+            # Add some jitter, but ping at least every five minutes.
+            await asyncio.sleep(295 + random.randint(-5, 5))
+    except asyncio.CancelledError:
+        return
 
 
 # Mapping from the strings used in the API to human-readable English names.
