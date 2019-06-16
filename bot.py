@@ -6,6 +6,7 @@ from typing import Optional, Dict, Sequence
 
 import base
 import data
+import lambda_event
 import web
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,8 @@ class Bot:
         if db is not None:
             data.startup(db)
 
-        self.handlers = handlers
+        self.handlers = [lambda_event.LambdaHandler()]
+        self.handlers.extend(handlers)
         self._queue = queue.Queue()
 
         ws = [c for c in connections if isinstance(c, web.WebServerConnection)]
@@ -51,6 +53,8 @@ class Bot:
         self._queue.put(event)
 
     def handle_queue(self) -> None:
+        if self.web:
+            self.web.flask.app_context().push()
         while True:
             event = self._queue.get()
             if isinstance(event, Shutdown):
