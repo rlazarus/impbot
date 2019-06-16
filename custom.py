@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import Optional, List
+
+import flask
 
 import base
 import command
@@ -29,6 +31,10 @@ class Command(object):
 
 
 class CustomCommandHandler(command.CommandHandler):
+    @property
+    def url_rules(self):
+        return [("/commands", self.web, None)]
+
     def check(self, message: base.Message) -> bool:
         if super().check(message):
             return True
@@ -54,6 +60,10 @@ class CustomCommandHandler(command.CommandHandler):
         c.count += 1
         self.data.set(name, repr(c))
         return c.response.replace("(count)", str(c.count))
+
+    def web(self) -> str:
+        commands: List[Command] = [eval(v) for k, v in self.data.list("")]
+        return flask.render_template("commands.html", commands=commands)
 
     def run_addcom(self, name: str, text: str) -> str:
         name = normalize(name)
