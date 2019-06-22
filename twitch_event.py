@@ -4,15 +4,12 @@ import logging
 import random
 import threading
 from typing import Optional, Dict, Any
-from urllib import parse
 
 import attr
-import requests
 import websockets
 
 import base
 import data
-import secret
 import twitch_util
 
 logger = logging.getLogger(__name__)
@@ -45,11 +42,11 @@ class GiftSubscription(Subscription):
 
 class TwitchEventConnection(base.Connection):
     def __init__(self, streamer_username: str, redirect_uri: str) -> None:
-        self.data = data.Namespace("TwitchEventConnection")
         self.streamer_username = streamer_username
         self.redirect_uri = redirect_uri
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        self.oauth = twitch_util.TwitchOAuth(streamer_username, redirect_uri)
         # threading.Event, not asyncio.Event: We need it for communicating
         # between threads, not between coroutines.
         self.shutdown_event = threading.Event()
@@ -61,8 +58,8 @@ class TwitchEventConnection(base.Connection):
                                   "functionality -- use TwitchChatConnection.")
 
     def run(self, on_event: base.EventCallback) -> None:
-        if not self.data.exists("access_token"):
-            self.oauth_authorize()
+        if not self.oauth.has_access_token:
+            self.oauth.authorize()
 
         # The websockets library wants to be called asynchronously, so bridge
         # into async code here.
@@ -74,7 +71,7 @@ class TwitchEventConnection(base.Connection):
                                           close_timeout=1) as self.websocket:
                 response = await self.subscribe(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
-                    self.oauth_refresh()
+                    self.oauth.refresh()
                     response = await self.subscribe(self.websocket)
                     if response["error"] == "ERR_BADAUTH":
                         raise base.ServerError("Two BADAUTH errors, giving up.")
@@ -107,7 +104,7 @@ class TwitchEventConnection(base.Connection):
                     f"channel-bits-events-v2.{channel_id}",
                     f"channel-subscribe-events-v1.{channel_id}",
                 ],
-                "auth_token": self.data.get("access_token"),
+                "auth_token": self.oauth.access_token,
             }
         }))
 
@@ -124,47 +121,6 @@ class TwitchEventConnection(base.Connection):
         if response["type"] != "RESPONSE":
             raise base.ServerError(f"Bad pubsub response: {response}")
         return response
-
-    def oauth_authorize(self) -> None:
-        # TODO: Replace this with a proper authorization flow, which requires a
-        #   persistent web service shared by all Impbot installations -- that
-        #   service should be the host for the OAuth redirect URI, and should
-        #   hold the Twitch client secret. Without that service, the access
-        #   code has to be fished out of HTTP logs and entered by hand.
-        scopes = ["bits:read", "channel_subscriptions"]
-        params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
-                                  "redirect_uri": self.redirect_uri,
-                                  "response_type": "code",
-                                  "scope": " ".join(scopes)})
-        access_code = input(
-            f"While logged into Twitch as {self.streamer_username}, please "
-            f"visit: https://id.twitch.tv/oauth2/authorize?{params}\n"
-            f"Access code: ")
-        self._oauth_fetch({"grant_type": "authorization_code",
-                           "code": access_code,
-                           "redirect_uri": self.redirect_uri})
-        logger.info("Twitch OAuth: Authorized!")
-
-    def oauth_refresh(self) -> None:
-        self._oauth_fetch({"grant_type": "refresh_token",
-                           "refresh_token": self.data.get("refresh_token")})
-        logger.info("Twitch OAuth: Refreshed!")
-
-    def _oauth_fetch(self, params: Dict[str, str]) -> None:
-        response = requests.post(
-            "https://id.twitch.tv/oauth2/token",
-            params={
-                "client_id": secret.TWITCH_CLIENT_ID,
-                "client_secret": secret.TWITCH_CLIENT_SECRET,
-                **params
-            })
-        if response.status_code != 200:
-            raise base.ServerError(response)
-        body = json.loads(response.text)
-        if "error" in body:
-            raise base.ServerError(body)
-        self.data.set("access_token", body["access_token"])
-        self.data.set("refresh_token", body["refresh_token"])
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
