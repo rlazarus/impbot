@@ -16,9 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class TwitchOAuth:
-    def __init__(self, streamer_username: str, redirect_uri: str):
+    def __init__(self, streamer_username: str):
         self.streamer_username = streamer_username
-        self.redirect_uri = redirect_uri
         # TODO: Migrate this over in the DB and rename the namespace.
         self.data = data.Namespace("TwitchEventConnection")
 
@@ -33,7 +32,7 @@ class TwitchOAuth:
         #   client secret.
         scopes = ["bits:read", "channel_subscriptions"]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
-                                  "redirect_uri": self.redirect_uri,
+                                  "redirect_uri": secret.TWITCH_REDIRECT_URI,
                                   "response_type": "code",
                                   "scope": " ".join(scopes)})
         access_code = input(
@@ -42,7 +41,7 @@ class TwitchOAuth:
             f"Access code: ")
         self._fetch({"grant_type": "authorization_code",
                      "code": access_code,
-                     "redirect_uri": self.redirect_uri})
+                     "redirect_uri": secret.TWITCH_REDIRECT_URI})
         logger.info("Twitch OAuth: Authorized!")
 
     def refresh(self) -> None:

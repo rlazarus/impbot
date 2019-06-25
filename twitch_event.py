@@ -41,12 +41,11 @@ class GiftSubscription(Subscription):
 
 
 class TwitchEventConnection(base.Connection):
-    def __init__(self, streamer_username: str, redirect_uri: str) -> None:
+    def __init__(self, streamer_username: str) -> None:
         self.streamer_username = streamer_username
-        self.redirect_uri = redirect_uri
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
-        self.oauth = twitch_util.TwitchOAuth(streamer_username, redirect_uri)
+        self.oauth = twitch_util.TwitchOAuth(streamer_username)
         # threading.Event, not asyncio.Event: We need it for communicating
         # between threads, not between coroutines.
         self.shutdown_event = threading.Event()
