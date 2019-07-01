@@ -163,16 +163,15 @@ class HueHandler(command.CommandHandler):
         if not message.user.admin:
             return None
         self.hue_client.enabled = True
-        return "twoheaDogchamp"
+        return "PogChamp"
 
     def run_lightsoff(self, message: base.Message) -> Optional[str]:
         if not message.user.admin:
             return None
         self.hue_client.enabled = False
-        return "THGSleepy"
+        return "\U0001f44b"  # Waving Hand emoji
 
-    def run_lights(self, message: base.Message, scene: Optional[str]) -> \
-            Optional[str]:
+    def run_lights(self, scene: Optional[str]) -> Optional[str]:
         if not self.hue_client.enabled:
             return None
         if not scene:
@@ -181,8 +180,6 @@ class HueHandler(command.CommandHandler):
         scene = _canonicalize(scene)
         if scene == "rainbow":
             return self.hue_client.colorloop()
-        if scene == "off" and message.user == twitch.TwitchUser("jaccabre"):
-            return "hi Jacca twoheaDogchamp"
 
         roulette = (scene == "random")
         if roulette:
@@ -194,8 +191,9 @@ class HueHandler(command.CommandHandler):
             return response
         if roulette:
             name = self.data.get(f"{scene} name")
-            return f"How about... {name}! twoheaDogchamp"
+            return f"How about... {name}! PogChamp"
         # Otherwise, no need to say anything.
+        return None
 
     def run_blink(self) -> None:
         if not self.hue_client.enabled:
@@ -231,11 +229,11 @@ class TwitchEnableDisableHandler(base.Handler):
         #   a reference to a TwitchChatConnection.
         if isinstance(event, twitch_webhook.StreamStartedEvent):
             self.hue_client.enabled = True
-            self.chat_conn.say("twoheaDogchamp twoheaDogchamp")
+            self.chat_conn.say("PogChamp PogChamp")
 
         if isinstance(event, twitch_webhook.StreamEndedEvent):
             self.hue_client.enabled = False
-            self.chat_conn.say("THGSleepy THGSleepy")
+            self.chat_conn.say("\U0001f44b \U0001f44b")  # Waving Hand emoji
 
 
 def _canonicalize(name: str) -> str:
