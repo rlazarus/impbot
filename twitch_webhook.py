@@ -2,7 +2,7 @@ import hashlib
 import logging
 import sys
 import threading
-from typing import Optional, Dict, Union
+from typing import Optional, Union
 
 import attr
 import flask
@@ -14,12 +14,10 @@ import hello
 import secret
 import stdio
 import twitch_util
+from twitch_util import OFFLINE
 from web import WebServerConnection
 
 logger = logging.getLogger(__name__)
-
-StreamData = Dict[str, Union[str, int]]
-OFFLINE: StreamData = dict()
 
 
 @attr.s(auto_attribs=True)
@@ -48,7 +46,7 @@ class TwitchWebhookConnection(base.Connection):
     def __init__(self, streamer_username: str) -> None:
         self.user_id = twitch_util.get_channel_id(streamer_username)
         self.on_event: Optional[base.EventCallback] = None  # Set in run().
-        self.last_data: StreamData = _stream_data(self.user_id)
+        self.last_data = twitch_util.get_stream_data(self.user_id)
         self.shutdown_event = threading.Event()
 
     @property
@@ -137,44 +135,20 @@ class TwitchWebhookConnection(base.Connection):
             return flask.Response(status=200)
         data = body["data"][0]
         if self.last_data == OFFLINE:
-            game = _game_name(data["game_id"])
+            game = twitch_util.game_name(data["game_id"])
             self.on_event(StreamStartedEvent(data["title"], game))
         else:
             if data["title"] != self.last_data["title"]:
                 title = data["title"]
                 self.on_event(StreamChangedEvent(title=title, game=None))
             if data["game_id"] != self.last_data["game_id"]:
-                game = _game_name(data["game_id"])
+                game = twitch_util.game_name(data["game_id"])
                 self.on_event(StreamChangedEvent(title=None, game=game))
         self.last_data = data
         return flask.Response(status=200)
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
-
-
-def _stream_data(user_id: int) -> StreamData:
-    response = requests.get("https://api.twitch.tv/helix/streams",
-                            params={"user_id": user_id},
-                            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-    if response.status_code != 200:
-        raise base.ServerError(response)
-    body = response.json()
-    if not body["data"]:
-        return OFFLINE
-    return body["data"][0]
-
-
-def _game_name(game_id: int) -> str:
-    response = requests.get("https://api.twitch.tv/helix/games",
-                            params={"id": game_id},
-                            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-    if response.status_code != 200:
-        raise base.ServerError(response)
-    body = response.json()
-    if not body["data"]:
-        raise base.ServerError(f"No Game with ID {game_id}")
-    return body["data"][0]["name"]
 
 
 if __name__ == "__main__":

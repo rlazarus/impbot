@@ -57,8 +57,7 @@ class TwitchEventConnection(base.Connection):
                                   "functionality -- use TwitchChatConnection.")
 
     def run(self, on_event: base.EventCallback) -> None:
-        if not self.oauth.has_access_token:
-            self.oauth.authorize()
+        self.oauth.maybe_authorize()
 
         # The websockets library wants to be called asynchronously, so bridge
         # into async code here.
