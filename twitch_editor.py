@@ -68,6 +68,7 @@ class TwitchEditorHandler(command.CommandHandler):
         response = requests.put(url, headers=headers, json=json)
         if response.status_code == 401:
             self.oauth.refresh()
+            headers["Authorization"] = f"Oauth {self.oauth.access_token}"
             response = requests.put(url, headers=headers, json=json)
         if response.status_code == 401:
             raise base.ServerError(f"401 after refreshing: {response.text}")
