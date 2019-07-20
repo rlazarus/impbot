@@ -17,13 +17,13 @@ class User:
     so that name collisions across separate services still result in unequal
     User objects.
 
-    Subclasses may include fields other than name -- if they constitute metadata
+    Subclasses may include fields other than name. If they constitute metadata,
     rather than part of the identity (e.g. display name or moderator status),
     they should be added with attr.ib(cmp=False) to exclude them from
     comparisons. As a result, it may be convenient to give them Optional types,
     where None means "unknown," and set them when handling events but leave them
-    empty when creating a TwitchUser for the purpose of representing or storing
-    an identity.
+    empty when creating a User for the purpose of representing or storing an
+    identity.
     """
     name: str
     admin: Optional[bool] = attr.ib(cmp=False, default=None)
