@@ -2,7 +2,7 @@ import hashlib
 import logging
 import sys
 import threading
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 
 import attr
 import flask
@@ -122,17 +122,21 @@ class TwitchWebhookConnection(base.Connection):
         logger.debug(f"Body length: {len(flask.request.data)}")
 
         body = flask.request.json
-        if 'data' not in body:
-            # This should be a bot.ServerError, but Twitch expects us to return
-            # 200 OK no matter what.
-            # TODO: Consider separating the parsing out of the Flask handler, so
-            #       that we can do both.
-            logger.error("Unexpected body")
+        try:
+            self._parse(body)
+        except (KeyError, IndexError):
+            logger.exception(f"Unexpected body: {body}")
+        # Return 200 even if we couldn't parse the message, per the API docs.
+        return flask.Response(status=200)
+
+    def _parse(self, body: Dict[str, ...]) -> None:
+        """Parses a JSON update and produces zero or more events."""
         if not body["data"]:
             if self.last_data != OFFLINE:
                 self.on_event(StreamEndedEvent())
                 self.last_data = OFFLINE
-            return flask.Response(status=200)
+            return
+
         data = body["data"][0]
         if self.last_data == OFFLINE:
             game = twitch_util.game_name(data["game_id"])
@@ -145,7 +149,7 @@ class TwitchWebhookConnection(base.Connection):
                 game = twitch_util.game_name(data["game_id"])
                 self.on_event(StreamChangedEvent(title=None, game=game))
         self.last_data = data
-        return flask.Response(status=200)
+
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
