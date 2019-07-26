@@ -7,6 +7,8 @@ import command
 import cooldown
 import datetime
 
+import web
+
 
 def normalize(command: str) -> str:
     if command.startswith('!'):
@@ -31,10 +33,6 @@ class Command(object):
 
 
 class CustomCommandHandler(command.CommandHandler):
-    @property
-    def url_rules(self):
-        return [("/commands", self.web, None)]
-
     def check(self, message: base.Message) -> bool:
         if super().check(message):
             return True
@@ -61,6 +59,7 @@ class CustomCommandHandler(command.CommandHandler):
         self.data.set(name, repr(c))
         return c.response.replace("(count)", str(c.count))
 
+    @web.url("/commands")
     def web(self) -> str:
         commands: List[Command] = [eval(v) for k, v in self.data.list("")]
         return flask.render_template("commands.html", commands=commands)

@@ -2,7 +2,7 @@ import hashlib
 import logging
 import sys
 import threading
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, List
 
 import attr
 import flask
@@ -14,10 +14,15 @@ import hello
 import secret
 import stdio
 import twitch_util
+import web
 from twitch_util import OFFLINE
 from web import WebServerConnection
 
 logger = logging.getLogger(__name__)
+
+UpdateValue = Union[str, int, List[int]]
+UpdateEntry = Dict[str, UpdateValue]
+UpdateBody = Dict[str, List[UpdateEntry]]
 
 
 @attr.s(auto_attribs=True)
@@ -48,10 +53,6 @@ class TwitchWebhookConnection(base.Connection):
         self.on_event: Optional[base.EventCallback] = None  # Set in run().
         self.last_data = twitch_util.get_stream_data(self.user_id)
         self.shutdown_event = threading.Event()
-
-    @property
-    def url_rules(self):
-        return [("/twitch_webhook", self.webhook, ["GET", "POST"])]
 
     def say(self, text: str) -> None:
         raise NotImplementedError("TwitchWebhookConnection doesn't have chat"
@@ -88,6 +89,7 @@ class TwitchWebhookConnection(base.Connection):
             logger.error(response.text)
             raise base.ServerError(response)
 
+    @web.url("/twitch_webhook", methods=["GET", "POST"])
     def webhook(self) -> Union[str, flask.Response]:
         if flask.request.method == "GET":
             logger.debug(f"GET {flask.request.url}")
@@ -129,7 +131,7 @@ class TwitchWebhookConnection(base.Connection):
         # Return 200 even if we couldn't parse the message, per the API docs.
         return flask.Response(status=200)
 
-    def _parse(self, body: Dict[str, ...]) -> None:
+    def _parse(self, body: UpdateBody) -> None:
         """Parses a JSON update and produces zero or more events."""
         if not body["data"]:
             if self.last_data != OFFLINE:
@@ -149,7 +151,6 @@ class TwitchWebhookConnection(base.Connection):
                 game = twitch_util.game_name(data["game_id"])
                 self.on_event(StreamChangedEvent(title=None, game=game))
         self.last_data = data
-
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
