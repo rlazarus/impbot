@@ -2,7 +2,7 @@ import logging
 import queue
 import sys
 import threading
-from typing import Optional, Dict, Sequence
+from typing import Optional, Dict, Sequence, List
 
 import base
 import data
@@ -34,13 +34,13 @@ class Bot:
         if db is not None:
             data.startup(db)
 
-        self.handlers = [lambda_event.LambdaHandler()]
+        self.handlers: List[base.Handler] = [lambda_event.LambdaHandler()]
         self.handlers.extend(handlers)
-        self._queue = queue.Queue()
+        self._queue: queue.Queue[base.Event] = queue.Queue()
 
         ws = [c for c in connections if isinstance(c, web.WebServerConnection)]
         if ws:
-            self.web = ws[0]
+            self.web: Optional[web.WebServerConnection] = ws[0]
             self.web.init_routes(self.connections, self.handlers)
         else:
             self.web = None

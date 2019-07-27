@@ -86,11 +86,11 @@ class _DelegatingView(views.View):
         self.subview = subview
 
     def dispatch_request(self, *args, **kwargs) -> ViewResponse:
-        q = queue.Queue(maxsize=1)
+        q: queue.Queue[Union[ViewResponse, Exception]] = queue.Queue(maxsize=1)
         self.connection.on_event(
             lambda_event.LambdaEvent(lambda: self._run(q, *args, **kwargs)))
         result = q.get()
-        if isinstance(result, BaseException):
+        if isinstance(result, Exception):
             raise RuntimeError from result
         return result
 
@@ -103,7 +103,7 @@ class _DelegatingView(views.View):
             q.put(e)
 
 
-def url(url: str, **options: Dict[str, Any]):
+def url(url: str, **options):
     """
     Decorator that turns a Connection or Handler method into a web view.
 

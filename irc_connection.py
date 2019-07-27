@@ -22,7 +22,7 @@ class IrcConnection(base.Connection, client.SimpleIRCClient):
         self.channel = channel
         self.password = password
         self.capabilities = capabilities if capabilities is not None else []
-        self.on_event: base.EventCallback = None
+        self.on_event: Optional[base.EventCallback] = None
 
     # bot.Connection overrides:
 

@@ -179,7 +179,8 @@ class HueHandler(command.CommandHandler):
 
         scene = _canonicalize(scene)
         if scene == "rainbow":
-            return self.hue_client.colorloop()
+            self.hue_client.colorloop()
+            return None
 
         roulette = (scene == "random")
         if roulette:

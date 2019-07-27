@@ -116,7 +116,7 @@ OFFLINE: StreamData = dict()
 def get_stream_data(user_id: Optional[int] = None,
                     username: Optional[str] = None) -> StreamData:
     if user_id:
-        params = {"user_id": user_id}
+        params: Dict[str, Union[str, int]] = {"user_id": user_id}
     elif username:
         params = {"user_login": username}
     else:

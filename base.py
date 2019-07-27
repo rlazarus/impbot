@@ -29,7 +29,7 @@ class User:
     admin: Optional[bool] = attr.ib(cmp=False, default=None)
 
     @property
-    def moderator(self) -> bool:
+    def moderator(self) -> Optional[bool]:
         return False
 
     def __str__(self) -> str:

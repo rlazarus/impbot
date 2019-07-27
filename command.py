@@ -1,3 +1,4 @@
+import typing
 from typing import (Callable, List, Tuple, Optional, Type, Any, cast, Union,
                     TypeVar, _GenericAlias)
 
@@ -6,6 +7,7 @@ import inspect
 
 
 T = TypeVar("T")
+CommandFunc = Callable[..., Optional[str]]
 
 
 class CommandHandler(base.Handler):
@@ -14,7 +16,7 @@ class CommandHandler(base.Handler):
         self.commands = {"!" + i[len("run_"):] for i in dir(self)
                          if i.startswith("run_") and callable(getattr(self, i))}
 
-    def _func_argstring(self, message) -> Optional[Tuple[Callable, str]]:
+    def _func_argstring(self, message) -> Optional[Tuple[CommandFunc, str]]:
         parts = message.text.split(None, 1)
         if not parts:
             return None
@@ -33,8 +35,9 @@ class CommandHandler(base.Handler):
             return False
         return self._func_argstring(message) is not None
 
-    def run(self, message: base.Message) -> str:
-        func, argstring = self._func_argstring(message)
+    def run(self, message: base.Message) -> Optional[str]:
+        func, argstring = typing.cast(Tuple[CommandFunc, str],
+                                      self._func_argstring(message))
         params = inspect.signature(func).parameters
         argtypes = [p.annotation for p in params.values()]
         # Optionally, the first parameter to a handler function can be special:
@@ -57,7 +60,7 @@ class CommandHandler(base.Handler):
             raise UsageError(func)
 
 
-def _args(argtypes: List[Type], func: Callable, argstring: str) -> List[Any]:
+def _args(argtypes: List[Type], func: CommandFunc, argstring: str) -> List[Any]:
     if not argtypes:
         # For commands with no arguments, silently ignore any other text on
         # the line.
@@ -99,7 +102,7 @@ def _is_optional(t: Type) -> bool:
     return t.__origin__ == Union and type(None) in t.__args__
 
 
-def _convert_arg(t: T, value: str) -> T:
+def _convert_arg(t: Type[T], value: str) -> T:
     if t == str:
         return value
     if isinstance(t, type):
@@ -113,6 +116,7 @@ def _convert_arg(t: T, value: str) -> T:
                 except (TypeError, ValueError):
                     continue
         raise ValueError
+    raise TypeError
 
 
 class UsageError(base.UserError):
@@ -121,7 +125,7 @@ class UsageError(base.UserError):
         super().__init__("Usage: " + self._usage(func))
 
     @staticmethod
-    def _usage(func: Callable) -> str:
+    def _usage(func: CommandFunc) -> str:
         if func.__doc__:
             return func.__doc__
         usage = ["!" + func.__name__[len("run_"):]]
