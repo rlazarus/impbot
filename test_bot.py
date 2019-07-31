@@ -13,7 +13,8 @@ class FooHandler(command.CommandHandler):
 
 
 class BarHandler(command.CommandHandler):
-    def run_bar(self):
+    @command.command("bar")
+    def bar(self):
         pass
 
 

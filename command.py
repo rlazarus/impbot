@@ -1,44 +1,68 @@
+import functools
 import typing
 from typing import (Callable, List, Tuple, Optional, Type, Any, cast, Union,
-                    TypeVar, _GenericAlias)
+                    TypeVar, _GenericAlias, Dict)
+
+import attr
 
 import base
 import inspect
-
 
 T = TypeVar("T")
 CommandFunc = Callable[..., Optional[str]]
 
 
+@attr.s(auto_attribs=True, frozen=True)
+class Command:
+    # For now this looks pretty useless, but it'll grow more functionality like
+    # cooldowns and permissions.
+    name: str  # Without prefix: e.g. "foo" not "!foo".
+    func: CommandFunc
+
+
 class CommandHandler(base.Handler):
+    # We don't actually use this class field on CommandHandler -- each subclass
+    # gets its own, added by the decorator.
+    tagged_commands: Dict[str, Command] = {}
+
     def __init__(self) -> None:
         super().__init__()
-        self.commands = {"!" + i[len("run_"):] for i in dir(self)
-                         if i.startswith("run_") and callable(getattr(self, i))}
+        self.commands: Dict[str, Command] = {}
+        # We don't need to check for duplicate names here because it's done
+        # by the decorator. Collect all the @command methods, binding them to
+        # self in the process...
+        for name, cmd in self.tagged_commands.items():
+            bound_func = functools.partial(cmd.func, self)
+            self.commands[f"!{name}"] = Command(name, bound_func)
+        # ... and all the run_foo methods, which are already bound via getattr.
+        for i in dir(self):
+            if i.startswith("run_") and callable(getattr(self, i)):
+                name = i[len("run_"):]
+                self.commands[f"!{name}"] = Command(name, getattr(self, i))
 
-    def _func_argstring(self, message) -> Optional[Tuple[CommandFunc, str]]:
+    def _cmd_argstring(self, message) -> Optional[Tuple[Command, str]]:
         parts = message.text.split(None, 1)
         if not parts:
             return None
         command = parts[0]
         argstring = parts[1] if len(parts) == 2 else ""
-        if not command.startswith("!"):
+        try:
+            return self.commands[command], argstring
+        except KeyError:
             return None
-        func = getattr(self, "run_" + command[1:], None)
-        if not callable(func):
-            return None
-        return func, argstring
 
     def check(self, message: base.Message) -> bool:
         # TODO: Replace this with proper type handling.
         if not isinstance(message, base.Message):
             return False
-        return self._func_argstring(message) is not None
+        return self._cmd_argstring(message) is not None
 
     def run(self, message: base.Message) -> Optional[str]:
-        func, argstring = typing.cast(Tuple[CommandFunc, str],
-                                      self._func_argstring(message))
-        params = inspect.signature(func).parameters
+        # We can cast away the Optional because if _cmd_argstring returned None,
+        # check() would have returned False, so run() wouldn't be called.
+        cmd, argstring = typing.cast(Tuple[Command, str],
+                                     self._cmd_argstring(message))
+        params = inspect.signature(cmd.func).parameters
         argtypes = [p.annotation for p in params.values()]
         # Optionally, the first parameter to a handler function can be special:
         # it can take the bot.Message directly, rather than an argument parsed
@@ -48,19 +72,19 @@ class CommandHandler(base.Handler):
             # If the function takes a Message, the args we'll parse are the
             # parameters after it.
             argtypes = argtypes[1:]
-        args = _args(argtypes, func, argstring)
+        args = _args(argtypes, cmd, argstring)
         try:
             if pass_message:
-                return func(message, *args)
+                return cmd.func(message, *args)
             else:
-                return func(*args)
+                return cmd.func(*args)
         except base.UserError as e:
             if str(e):
                 raise e
-            raise UsageError(func)
+            raise UsageError(cmd)
 
 
-def _args(argtypes: List[Type], func: CommandFunc, argstring: str) -> List[Any]:
+def _args(argtypes: List[Type], cmd: Command, argstring: str) -> List[Any]:
     if not argtypes:
         # For commands with no arguments, silently ignore any other text on
         # the line.
@@ -76,13 +100,13 @@ def _args(argtypes: List[Type], func: CommandFunc, argstring: str) -> List[Any]:
             try:
                 args.append(_convert_arg(argtype, argstrings[i]))
             except (TypeError, ValueError):
-                raise UsageError(func)
+                raise UsageError(cmd)
         else:
-            # We're off the end of args, so there are fewer args provided than
-            # expected. That's allowed, if all the remaining args are Optional.
-            # In that case, extend it with Nones.
+            # We're off the end of argstrings, so there are fewer args provided
+            # than expected. That's allowed, if all the remaining args are
+            # Optional. In that case, extend it with Nones.
             if not _is_optional(argtype):
-                raise UsageError(func)
+                raise UsageError(cmd)
             args.append(None)
 
     return args
@@ -119,17 +143,50 @@ def _convert_arg(t: Type[T], value: str) -> T:
     raise TypeError
 
 
+def command(name: str):
+    """
+    Decorator that registers a CommandHandler method as a chat command.
+    """
+    if name.startswith("!"):
+        name = name[1:]
+    return functools.partial(_CommandDecorator, name)
+
+
+class _CommandDecorator:
+    def __init__(self, name: str, func: CommandFunc):
+        self.cmd_name = name
+        self.func = func
+
+    def __set_name__(self, owner: Type, name: str):
+        if not issubclass(owner, CommandHandler):
+            raise TypeError("@command decorator may only be used on methods of "
+                            "a CommandHandler subclass.")
+        # We want to modify the subclass's tagged_commands, not one inherited
+        # from CommandHandler itself, so we check __dict__ directly and add one
+        # if it's not there already.
+        if "tagged_commands" not in owner.__dict__:
+            owner.tagged_commands = {}
+        if self.cmd_name in owner.tagged_commands:
+            raise ValueError(
+                f"{self.cmd_name} is defined twice in {owner.__name__}")
+        if hasattr(owner, f"run_{self.cmd_name}"):
+            raise ValueError(
+                f"{self.cmd_name} is defined by both a @command "
+                f"decorator and a run_ method in {owner.__name__}")
+        owner.tagged_commands[self.cmd_name] = Command(self.cmd_name, self.func)
+        setattr(owner, name, self.func)
+
+
 class UsageError(base.UserError):
-    def __init__(self, func: Callable):
-        assert func.__name__.startswith("run_")
-        super().__init__("Usage: " + self._usage(func))
+    def __init__(self, cmd: Command):
+        super().__init__("Usage: " + self._usage(cmd))
 
     @staticmethod
-    def _usage(func: CommandFunc) -> str:
-        if func.__doc__:
-            return func.__doc__
-        usage = ["!" + func.__name__[len("run_"):]]
-        params = inspect.signature(func).parameters.items()
+    def _usage(cmd: Command) -> str:
+        if cmd.func.__doc__:
+            return cmd.func.__doc__
+        usage = ["!" + cmd.name]
+        params = inspect.signature(cmd.func).parameters.items()
         for name, param in params:
             if param.annotation == base.Message:
                 continue
