@@ -2,6 +2,7 @@ import hashlib
 import logging
 import sys
 import threading
+from datetime import datetime
 from typing import Optional, Union, Dict, List
 
 import attr
@@ -47,6 +48,12 @@ class StreamChangedEvent(TwitchWebhookEvent):
     game: Optional[str]
 
 
+@attr.s(auto_attribs=True)
+class NewFollowerEvent(TwitchWebhookEvent):
+    follower_name: str
+    time: datetime
+
+
 class TwitchWebhookConnection(base.Connection):
     def __init__(self, streamer_username: str) -> None:
         self.user_id = twitch_util.get_channel_id(streamer_username)
@@ -60,16 +67,16 @@ class TwitchWebhookConnection(base.Connection):
 
     def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event
-        self._subscribe()
+        self._subscribe(f"/streams?user_id={self.user_id}")
+        self._subscribe(f"/users/follows?first=1&to_id={self.user_id}")
         # We don't need to do anything -- 100% of the work happens in the web
         # handler now. Just wait until it's time to shut down, then return.
         self.shutdown_event.wait()
 
-    def _subscribe(self) -> None:
+    def _subscribe(self, topic) -> None:
         # TODO: Check existing subscriptions, skip if we're already subscribed.
         # TODO: Renew subscription as needed.
         # TODO: Unsubscribe on exit.
-        topic = f"https://api.twitch.tv/helix/streams?user_id={self.user_id}"
         self.secret = twitch_util.nonce()
         logger.debug(f"Secret: {self.secret}")
         callback_url = flask.url_for("TwitchWebhookConnection.webhook",
@@ -78,7 +85,7 @@ class TwitchWebhookConnection(base.Connection):
             "https://api.twitch.tv/helix/webhooks/hub",
             json={"hub.callback": callback_url,
                   "hub.mode": "subscribe",
-                  "hub.topic": topic,
+                  "hub.topic": f"https://api.twitch.tv/helix{topic}",
                   "hub.lease_seconds": 60 * 60 * 24 * 7,
                   "hub.secret": self.secret,
                   },
@@ -123,34 +130,40 @@ class TwitchWebhookConnection(base.Connection):
         logger.debug(f"Expected signature: {expected_signature}")
         logger.debug(f"Body length: {len(flask.request.data)}")
 
+        topic = _topic(flask.request.headers["Link"])
         body = flask.request.json
         try:
-            self._parse(body)
+            self._parse(topic, body)
         except (KeyError, IndexError):
             logger.exception(f"Unexpected body: {body}")
         # Return 200 even if we couldn't parse the message, per the API docs.
         return flask.Response(status=200)
 
-    def _parse(self, body: UpdateBody) -> None:
+    def _parse(self, topic: str, body: UpdateBody) -> None:
         """Parses a JSON update and produces zero or more events."""
-        if not body["data"]:
-            if self.last_data != OFFLINE:
-                self.on_event(StreamEndedEvent())
-                self.last_data = OFFLINE
-            return
+        if "/streams" in topic:
+            if not body["data"]:
+                if self.last_data != OFFLINE:
+                    self.on_event(StreamEndedEvent())
+                    self.last_data = OFFLINE
+                return
 
-        data = body["data"][0]
-        if self.last_data == OFFLINE:
-            game = twitch_util.game_name(data["game_id"])
-            self.on_event(StreamStartedEvent(data["title"], game))
-        else:
-            if data["title"] != self.last_data["title"]:
-                title = data["title"]
-                self.on_event(StreamChangedEvent(title=title, game=None))
-            if data["game_id"] != self.last_data["game_id"]:
+            data = body["data"][0]
+            if self.last_data == OFFLINE:
                 game = twitch_util.game_name(data["game_id"])
-                self.on_event(StreamChangedEvent(title=None, game=game))
-        self.last_data = data
+                self.on_event(StreamStartedEvent(data["title"], game))
+            else:
+                if data["title"] != self.last_data["title"]:
+                    title = data["title"]
+                    self.on_event(StreamChangedEvent(title=title, game=None))
+                if data["game_id"] != self.last_data["game_id"]:
+                    game = twitch_util.game_name(data["game_id"])
+                    self.on_event(StreamChangedEvent(title=None, game=game))
+            self.last_data = data
+        elif "/follows" in topic:
+            data = body["data"][0]
+            time = datetime.strptime(data["followed_at"], "%Y-%m-%dT%H:%M:%S%z")
+            self.on_event(NewFollowerEvent(data["from_name"], time))
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
@@ -171,3 +184,14 @@ if __name__ == "__main__":
     ]
     b = bot.Bot("impbot.sqlite", connections, handlers)
     b.main()
+
+
+def _topic(link_header: str) -> str:
+    """Parses an HTTP Link: header and returns the message topic."""
+    # Example header:
+    # Link: <https://api.twitch.tv/helix/webhooks/hub>; rel="hub", <https://api.twitch.tv/helix/streams?user_id=1234>; rel="self"
+    links = link_header.split(", ")
+    for link in links:
+        url, rel = link.split("; ", 1)
+        if rel == 'rel="self"':
+            return url[1:-1]  # Strip off <>.

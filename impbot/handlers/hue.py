@@ -236,6 +236,9 @@ class TwitchEnableDisableHandler(base.Handler):
             self.hue_client.enabled = False
             self.chat_conn.say("\U0001f44b \U0001f44b")  # Waving Hand emoji
 
+        if isinstance(event, twitch_webhook.NewFollowerEvent):
+            self.hue_client.blink()
+
 
 def _canonicalize(name: str) -> str:
     return "".join(i for i in name.lower() if i in string.ascii_lowercase)
