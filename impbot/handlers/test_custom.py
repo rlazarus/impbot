@@ -21,6 +21,8 @@ class CustomCommandHandlerTest(tests_util.DataHandlerTest):
         self.assert_response("!blame", "It's always Ms. Boogie's fault.")
         self.assert_response("!blame", "It's always Ms. Boogie's fault.",
                              self.mod)
+        # It should be case-insensitive.
+        self.assert_response("!BlAmE", "It's always Ms. Boogie's fault.")
         self.assert_response("!editcom !blame It's still Ms. Boogie's fault.",
                              "Edited !blame.", self.mod)
         self.assert_response("!blame", "It's still Ms. Boogie's fault.")
