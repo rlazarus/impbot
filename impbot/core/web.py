@@ -1,7 +1,7 @@
 import functools
 import logging
 import queue
-from typing import Sequence, Optional, Callable, Union, Dict, Tuple, Any, Type
+from typing import Sequence, Optional, Union, Dict, Any, Type, cast
 
 import flask
 from flask import views
@@ -12,22 +12,10 @@ from impbot.handlers import lambda_event
 
 logger = logging.getLogger(__name__)
 
-# ViewResponse is the union of allowed return types from a view function,
-# according to Flask docs. (Returning a WSGI application is also allowed,
-# omitted here.)
-SimpleViewResponse = Union[flask.Response, str, bytes]
-ViewResponse = Union[SimpleViewResponse,
-                     Tuple[SimpleViewResponse, int, Dict[str, str]],
-                     Tuple[SimpleViewResponse, int],
-                     Tuple[SimpleViewResponse, Dict[str, str]]]
-
 
 class WebServerConnection(base.Connection):
     def __init__(self, host: str, port: int) -> None:
-        self.host = host
-        self.port = port
         self.on_event: Optional[base.EventCallback] = None
-
         self.flask = flask.Flask(__name__)
         self.flask.config["SERVER_NAME"] = f"{host}:{port}"
         self.flask_server = serving.make_server(host, port, self.flask)
@@ -35,7 +23,7 @@ class WebServerConnection(base.Connection):
     def init_routes(self, connections: Sequence[base.Connection],
                     handlers: Sequence[base.Handler]) -> None:
         for connection in connections:
-            for url, view_func, options in getattr(connection, "url_rules", []):
+            for url, view_func, options in connection.url_rules:
                 endpoint = f"{type(connection).__name__}.{view_func.__name__}"
                 # The class's url_rules stores the unbound method (because the
                 # @url decorator kicks in before the instance is created) so
@@ -48,7 +36,7 @@ class WebServerConnection(base.Connection):
         # In order to do that, wrap the supplied view in a view class that
         # bundles it into a LambdaEvent, then blocks waiting for the result.
         for handler in handlers:
-            for url, view_func, options in getattr(handler, "url_rules", []):
+            for url, view_func, options in handler.url_rules:
                 endpoint = f"{type(handler).__name__}.{view_func.__name__}"
                 view_func = functools.partial(view_func, handler)
                 view_func = _DelegatingView.as_view(endpoint, self, view_func)
@@ -81,20 +69,23 @@ class _DelegatingView(views.View):
     """
 
     def __init__(self, connection: WebServerConnection,
-                 subview: Callable[..., ViewResponse]) -> None:
+                 subview: base.ViewFunc) -> None:
         self.connection = connection
         self.subview = subview
 
-    def dispatch_request(self, *args, **kwargs) -> ViewResponse:
-        q: queue.Queue[Union[ViewResponse, Exception]] = queue.Queue(maxsize=1)
-        self.connection.on_event(
-            lambda_event.LambdaEvent(lambda: self._run(q, *args, **kwargs)))
+    def dispatch_request(self, *args: Any, **kwargs: Any) -> base.ViewResponse:
+        q: queue.Queue[Union[base.ViewResponse, Exception]] = queue.Queue(
+            maxsize=1)
+        event = lambda_event.LambdaEvent(lambda: self._run(q, *args, **kwargs))
+        # We can cast away the Optional from on_event because it's set in the
+        # connection's run(), before the Flask server is started.
+        cast(base.EventCallback, self.connection.on_event)(event)
         result = q.get()
         if isinstance(result, Exception):
             raise RuntimeError from result
         return result
 
-    def _run(self, q: queue.Queue, *args, **kwargs) -> None:
+    def _run(self, q: queue.Queue, *args: Any, **kwargs: Any) -> None:
         try:
             q.put(self.subview(*args, **kwargs))
         except Exception as e:
@@ -113,14 +104,16 @@ def url(url: str, **options):
 
 
 class _UrlDecorator:
-    def __init__(self, url: str, options: Dict[str, Any],
-                 func: Callable[..., ViewResponse]):
+    def __init__(self, url: str, options: Dict[str, Any], func: base.ViewFunc):
         self.url = url
         self.options = options
         self.func = func
 
-    def __set_name__(self, owner: Type, name: str):
-        if not hasattr(owner, "url_rules"):
+    def __set_name__(self, owner: Type[Union[base.Connection, base.Handler]],
+                     name: str):
+        # We want to modify owner's url_rules, not the one inherited from
+        # Connection or Handler.
+        if "url_rules" not in owner.__dict__:
             owner.url_rules = []
         owner.url_rules.append((self.url, self.func, self.options))
         setattr(owner, name, self.func)
