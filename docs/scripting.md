@@ -1,8 +1,8 @@
-This is intended as a guide for anyone interested in adding custom functionality
-to Impbot by writing a little Python. It introduces the major abstractions of
-the framework and walks you through how to use them.
+This is a guide to adding custom functionality to Impbot by writing a little
+Python. It introduces the frameworks' major abstractions and walks you through
+how to use them.
 
-A primary goal of Impbot is that it should be quick and easy to add modular 
+A primary goal of Impbot is that it should be quick and easy to add modular
 features to your own bot, using minimal boilerplate and without needing to dig
 into the core workings of the bot.
 
@@ -145,21 +145,23 @@ and might add and subtract points when they win and lose.
 
 By default, each handler has access to its own data, isolated from other
 handlers. This is called a **namespace**. (The namespace name is based on the
-unqualified name of the handler class, so avoid giving two handler classes the
-same name; their data would be merged.) The namespace provides a
+unqualified name of the handler class, so you should avoid giving two handler
+classes the same name, as their data would be merged. This may be updated to use
+the fully-qualified name in future.) The namespace provides a
 string-key-string-value interface to the underlying table, so a handler might
 say `self.data.set("name", "impbot")`, and then subsequent calls to
 `self.data.get("name")` would return `"impbot"` -- but only in the same handler.
 
 For now, calling methods on the namespace from a handler's `__init__` method
 will raise an error, as the database hasn't been initialized at that phase of
-the bot's startup. This might change in the future.
+the bot's startup; data should only be used in `check` or `run`. This might
+change in the future.
 
 ## Connections
 
 A **connection** is how your bot sends and receives messages on a chat service
 like Twitch or Discord. You may not need to write one -- if a connection for
-your chat service is built-in, you can just use it, initializing it with your
+your chat service is built in, you can just use it, initializing it with your
 OAuth token or other credentials.
 
 If you do need a custom connection, subclass `base.Connection` and implement
@@ -187,7 +189,8 @@ Like handlers, connections (or utility classes) may also want data persistence,
 for example to store OAuth tokens. They aren't constructed with a namespace by
 default, but can simply instantiate one with `data.Namespace("MyClassName")`.
 (This can be done in the connection's `__init__` -- but don't call any _methods_
-on the namespace yet, as described with handlers above.) Note that the
+on the namespace yet, as described with handlers above; any startup work
+involving data can be done at the beginning of `run`.) Note that the
 `Namespace` object wraps a `sqlite3.Connection` under the hood, so sharing an
 instance between threads will raise concurrency errors.
 
