@@ -1,7 +1,9 @@
 import logging
+import os
 import queue
 import sys
 import threading
+from logging import handlers
 from typing import Optional, Dict, Sequence, List
 
 from impbot.core import base
@@ -10,6 +12,27 @@ from impbot.core import web
 from impbot.handlers import lambda_event
 
 logger = logging.getLogger(__name__)
+
+
+def init_logging(path: str) -> None:
+    # Configure the root logger, not the "impbot" logger, so as to also divert
+    # library output to the same place.
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        fmt="{asctime} {name} {filename}:{lineno} {levelname}: {message}",
+        style="{")
+    formatter.default_msec_format = "%s.%03d"
+
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(formatter)
+    root_logger.addHandler(stdout_handler)
+
+    os.makedirs(path, exist_ok=True)
+    path = os.path.join(path, "impbot.log")
+    file_handler = handlers.TimedRotatingFileHandler(path, "midnight")
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
 
 
 class Shutdown(base.Event):
