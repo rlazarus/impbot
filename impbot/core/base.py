@@ -1,13 +1,15 @@
 import abc
 import inspect
-from typing import (Optional, Callable, ClassVar, List, Tuple, Dict, Any, Union,
-                    Generic, TypeVar)
+from typing import (Optional, Callable, ClassVar, List, Generic, TypeVar,
+                    TYPE_CHECKING)
 
 import attr
-import flask
 
 from impbot.core import data
 from impbot.util import types
+
+if TYPE_CHECKING:
+    from impbot.core import web
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -91,24 +93,16 @@ class ServerError(Exception):
 
 EventCallback = Callable[[Event], None]
 
-# ViewResponse is the union of allowed return types from a web view function,
-# according to Flask docs. (Returning a WSGI application is also allowed,
-# omitted here.)
-SimpleViewResponse = Union[flask.Response, str, bytes]
-ViewResponse = Union[SimpleViewResponse,
-                     Tuple[SimpleViewResponse, int, Dict[str, str]],
-                     Tuple[SimpleViewResponse, int],
-                     Tuple[SimpleViewResponse, Dict[str, str]]]
-ViewFunc = Callable[..., ViewResponse]
-UrlRule = Tuple[str, ViewFunc, Dict[str, Any]]
+
+class Module:
+    # Subclasses of Connection or Handler may override url_rules to register URL
+    # handlers; this is done automatically by the @web.url decorator. Nothing
+    # should add to Module.url_rules directly: it remains empty as a shared
+    # default. The same goes for Connection.url_rules and Handler.url_rules.
+    url_rules: ClassVar[List["web.UrlRule"]] = []
 
 
-class Connection(abc.ABC):
-    # Subclasses of Connection may override url_rules to register URL handlers;
-    # this is done automatically by the @web.url decorator. Nothing should add
-    # to Connection.url_rules directly: it remains empty as a shared default.
-    url_rules: ClassVar[List[UrlRule]] = []
-
+class Connection(Module, abc.ABC):
     @abc.abstractmethod
     def say(self, text: str) -> None:
         pass
@@ -122,14 +116,10 @@ class Connection(abc.ABC):
         pass
 
 
-E = TypeVar('E', bound=Event, contravariant=True)
+E = TypeVar("E", bound=Event, contravariant=True)
 
 
-class Handler(abc.ABC, Generic[E]):
-    # As at Connection.url_rules, Handler subclasses may override this (@web.url
-    # does so automatically) but should not edit the shared default.
-    url_rules: ClassVar[List[UrlRule]] = []
-
+class Handler(Module, abc.ABC, Generic[E]):
     def __init__(self) -> None:
         self.data = data.Namespace(type(self).__name__)
 

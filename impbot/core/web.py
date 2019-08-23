@@ -1,7 +1,8 @@
 import functools
 import logging
 import queue
-from typing import Sequence, Optional, Union, Dict, Any, Type, cast
+from typing import Sequence, Optional, Union, Dict, Any, Type, cast, Tuple, \
+    Callable
 
 import flask
 from flask import views
@@ -54,6 +55,18 @@ class WebServerConnection(base.Connection):
         self.flask_server.shutdown()
 
 
+# ViewResponse is the union of allowed return types from a view function,
+# according to Flask docs. (Returning a WSGI application is also allowed,
+# omitted here.)
+SimpleViewResponse = Union[flask.Response, str, bytes]
+ViewResponse = Union[SimpleViewResponse,
+                     Tuple[SimpleViewResponse, int, Dict[str, str]],
+                     Tuple[SimpleViewResponse, int],
+                     Tuple[SimpleViewResponse, Dict[str, str]]]
+ViewFunc = Callable[..., ViewResponse]
+UrlRule = Tuple[str, ViewFunc, Dict[str, Any]]
+
+
 class _DelegatingView(views.View):
     """
     A Flask View that wraps another View and runs it on the bot's event thread.
@@ -69,13 +82,12 @@ class _DelegatingView(views.View):
     """
 
     def __init__(self, connection: WebServerConnection,
-                 subview: base.ViewFunc) -> None:
+                 subview: ViewFunc) -> None:
         self.connection = connection
         self.subview = subview
 
-    def dispatch_request(self, *args: Any, **kwargs: Any) -> base.ViewResponse:
-        q: queue.Queue[Union[base.ViewResponse, Exception]] = queue.Queue(
-            maxsize=1)
+    def dispatch_request(self, *args: Any, **kwargs: Any) -> ViewResponse:
+        q: queue.Queue[Union[ViewResponse, Exception]] = queue.Queue(maxsize=1)
         event = lambda_event.LambdaEvent(lambda: self._run(q, *args, **kwargs))
         # We can cast away the Optional from on_event because it's set in the
         # connection's run(), before the Flask server is started.
@@ -104,13 +116,12 @@ def url(url: str, **options):
 
 
 class _UrlDecorator:
-    def __init__(self, url: str, options: Dict[str, Any], func: base.ViewFunc):
+    def __init__(self, url: str, options: Dict[str, Any], func: ViewFunc):
         self.url = url
         self.options = options
         self.func = func
 
-    def __set_name__(self, owner: Type[Union[base.Connection, base.Handler]],
-                     name: str):
+    def __set_name__(self, owner: Type[base.Module], name: str):
         # We want to modify owner's url_rules, not the one inherited from
         # Connection or Handler.
         if "url_rules" not in owner.__dict__:
