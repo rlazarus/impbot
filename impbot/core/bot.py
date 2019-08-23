@@ -4,7 +4,7 @@ import queue
 import sys
 import threading
 from logging import handlers
-from typing import Optional, Dict, Sequence, List
+from typing import Optional, Dict, Sequence, List, Any
 
 from impbot.core import base
 from impbot.core import data
@@ -42,11 +42,11 @@ class Shutdown(base.Event):
 class Bot:
     def __init__(self, db: Optional[str],
                  connections: Sequence[base.Connection],
-                 handlers: Sequence[base.Handler]) -> None:
+                 handlers: Sequence[base.Handler[Any]]) -> None:
         self.connections = connections
 
         # Check for duplicate commands.
-        commands: Dict[str, base.Handler] = {}
+        commands: Dict[str, base.Handler[Any]] = {}
         for handler in handlers:
             for command in getattr(handler, "commands", []):
                 if command in commands:
@@ -57,7 +57,7 @@ class Bot:
         if db is not None:
             data.startup(db)
 
-        self.handlers: List[base.Handler] = [lambda_event.LambdaHandler()]
+        self.handlers: List[base.Handler[Any]] = [lambda_event.LambdaHandler()]
         self.handlers.extend(handlers)
         self._queue: queue.Queue[base.Event] = queue.Queue()
 
@@ -90,6 +90,8 @@ class Bot:
 
     def handle(self, event: base.Event) -> None:
         for handler in self.handlers:
+            if not handler.typecheck(event):
+                continue
             if not handler.check(event):
                 continue
             try:

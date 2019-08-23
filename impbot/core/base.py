@@ -1,10 +1,13 @@
 import abc
-from typing import Optional, Callable, ClassVar, List, Tuple, Dict, Any, Union
+import inspect
+from typing import (Optional, Callable, ClassVar, List, Tuple, Dict, Any, Union,
+                    Generic, TypeVar)
 
 import attr
 import flask
 
 from impbot.core import data
+from impbot.util import types
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -119,7 +122,10 @@ class Connection(abc.ABC):
         pass
 
 
-class Handler(abc.ABC):
+E = TypeVar('E', bound=Event, contravariant=True)
+
+
+class Handler(abc.ABC, Generic[E]):
     # As at Connection.url_rules, Handler subclasses may override this (@web.url
     # does so automatically) but should not edit the shared default.
     url_rules: ClassVar[List[UrlRule]] = []
@@ -128,9 +134,24 @@ class Handler(abc.ABC):
         self.data = data.Namespace(type(self).__name__)
 
     @abc.abstractmethod
-    def check(self, event: Event) -> bool:
+    def check(self, event: E) -> bool:
         pass
 
     @abc.abstractmethod
-    def run(self, event: Event) -> Optional[str]:
+    def run(self, event: E) -> Optional[str]:
         pass
+
+    def typecheck(self, event: Event):
+        """
+        Returns True if this Handler can accept events of this event's type.
+        """
+        # Because generics are subject to type erasure, we can't just look at
+        # the type parameter; that is, at runtime we can't see that it was
+        # defined as Handler[Message], so we can't use that to conclude that
+        # Message subtypes are okay. Instead we inspect the type annotation of
+        # the check method's argument, which should be the same type.
+        # TODO: This assumes the type hint is present -- if it's not, we should
+        #       die on startup, rather than when we go to look at it.
+        params = inspect.signature(self.check).parameters
+        [event_param] = params.values()
+        return types.is_instance(event, event_param.annotation)

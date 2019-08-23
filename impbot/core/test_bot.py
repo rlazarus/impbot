@@ -1,5 +1,5 @@
 import unittest
-from typing import Union
+from typing import Union, Any
 from unittest import mock
 
 from impbot.core import bot

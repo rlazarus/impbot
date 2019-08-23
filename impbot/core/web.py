@@ -21,7 +21,7 @@ class WebServerConnection(base.Connection):
         self.flask_server = serving.make_server(host, port, self.flask)
 
     def init_routes(self, connections: Sequence[base.Connection],
-                    handlers: Sequence[base.Handler]) -> None:
+                    handlers: Sequence[base.Handler[Any]]) -> None:
         for connection in connections:
             for url, view_func, options in connection.url_rules:
                 endpoint = f"{type(connection).__name__}.{view_func.__name__}"

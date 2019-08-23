@@ -28,7 +28,7 @@ Here's an example of a handler that responds to any message that says (exactly)
 "hello, impbot" with the reply "Hello, world!"
 
 ```python
-class HelloHandler(base.Handler):
+class HelloHandler(base.Handler[base.Message]):
     def check(self, message: base.Message) -> bool:
         return message.text == "hello, impbot"
 
@@ -45,6 +45,18 @@ object carries the information we'd need:
 def run(self, message: base.Message) -> str:
     return f"Hello, {message.user}!"
 ```
+
+The `Handler` class is generic; a `Handler[T]` should accept events of type `T`
+to its `check` and `run` methods, where `T` is `base.Event` or a subclass. (In
+our example, it was the subclass `Message`.)
+
+When events are generated that don't fit your declared type, they'll
+automatically skip your handler, before your `check` is even called. For
+example, if your handler is only interested in chat messages, but an event goes
+past announcing that the stream has gone live, your handler doesn't need to
+worry about rejecting it. You can safely assume that any event passed to your
+`check` method conforms to the
+[type hint](https://docs.python.org/3/library/typing.html) you set.
 
 ## Command handlers
 
@@ -125,17 +137,13 @@ class GamblingHandler(command.CommandHandler):
         # ...
 ```
 
-Normally, type hints are optional in Python. Impbot relies on them for critical
-information, so they're _required_ -- if you leave them out, your bot will fail
-to start up. This behavior can be a little surprising: at first glance, it may
-feel uncomfortably magical for your method to be called with different arguments
-depending on your type hints. The benefit is that it allows you to write your
-handler without a lot of extra boilerplate declaring how to call it: the type
-hints are all you need.
-
-Remember, this type detection only happens for command handlers -- plain old
-`Handler` subclasses just have an ordinary `check` and `run` method, and each
-takes an `Event`.
+Normally, type hints are optional in Python. As we've seen in a couple of places
+now, Impbot relies on them for critical information, so they're _required_ -- if
+you leave them out, your bot will fail to start up. This behavior can be a
+little surprising: at first glance, it may feel uncomfortably magical for your
+method to be called with different arguments depending on your type hints. The
+benefit is that it allows you to write your handler without a lot of extra
+boilerplate declaring how to call it: the type hints are all you need.
 
 ## Data
 

@@ -202,30 +202,31 @@ class HueHandler(command.CommandHandler):
         self.hue_client.blink()
 
 
-class TwitchEventBlinkHandler(base.Handler):
+class TwitchEventBlinkHandler(base.Handler[twitch_event.TwitchEvent]):
     def __init__(self, hue_client: HueClient) -> None:
         super().__init__()
         self.hue_client = hue_client
 
-    def check(self, event: base.Event) -> bool:
-        return isinstance(event, twitch_event.TwitchEvent)
+    def check(self, event: twitch_event.TwitchEvent) -> bool:
+        return True
 
-    def run(self, event: base.Event) -> None:
+    def run(self, event: twitch_event.TwitchEvent) -> None:
         if self.hue_client.enabled:
             self.hue_client.blink()
 
 
-class TwitchEnableDisableHandler(base.Handler):
+class TwitchEnableDisableHandler(
+        base.Handler[twitch_webhook.TwitchWebhookEvent]):
     def __init__(self, hue_client: HueClient,
                  chat_conn: twitch.TwitchChatConnection) -> None:
         super().__init__()
         self.hue_client = hue_client
         self.chat_conn = chat_conn
 
-    def check(self, event: base.Event) -> bool:
-        return isinstance(event, twitch_webhook.TwitchWebhookEvent)
+    def check(self, event: twitch_webhook.TwitchWebhookEvent) -> bool:
+        return True
 
-    def run(self, event: base.Event) -> None:
+    def run(self, event: twitch_webhook.TwitchWebhookEvent) -> None:
         # TODO: Refactor so the replies here can be returned instead of having
         #   a reference to a TwitchChatConnection.
         if isinstance(event, twitch_webhook.StreamStartedEvent):

@@ -11,7 +11,7 @@ class HandlerTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.reply: Callable[[str], None] = mock.Mock()
-        self.handler: base.Handler = None
+        self.handler: base.Handler[base.Message] = None
 
     def _message(self, input: str, user: Optional[base.User] = None):
         if not user:

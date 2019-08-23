@@ -6,7 +6,7 @@ from typing import Optional, Mapping
 from impbot.core import base
 
 
-class RegexHandler(base.Handler):
+class RegexHandler(base.Handler[base.Message]):
     def __init__(self, patterns: Mapping[str, str]) -> None:
         super().__init__()
         try:

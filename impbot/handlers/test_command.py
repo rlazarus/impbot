@@ -1,5 +1,5 @@
 import unittest
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union
 
 from impbot.handlers import command
 
@@ -85,15 +85,6 @@ class CommandTest(unittest.TestCase):
         self.assertRaisesRegex(command.UsageError,
                                r"^Usage: !z <explicit usage string>$",
                                command._args, [str], self.z, "")
-
-    def testIsOptional(self):
-        self.assertTrue(command._is_optional(Optional[str]))
-        self.assertTrue(command._is_optional(Union[str, None]))
-        self.assertTrue(command._is_optional(Union[None, str]))
-        self.assertTrue(command._is_optional(Union[str, int, None]))
-        self.assertFalse(command._is_optional(str))
-        self.assertFalse(command._is_optional(List[str]))
-        self.assertFalse(command._is_optional(Callable[[Optional[str]], str]))
 
 
 def run_x(arga: int, argb: str):

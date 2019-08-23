@@ -7,6 +7,7 @@ from typing import (Callable, List, Tuple, Optional, Type, Any, cast, Union,
 import attr
 
 from impbot.core import base
+from impbot.util import types
 
 T = TypeVar("T")
 CommandFunc = Callable[..., Optional[str]]
@@ -20,7 +21,7 @@ class Command:
     func: CommandFunc
 
 
-class CommandHandler(base.Handler):
+class CommandHandler(base.Handler[base.Message]):
     # We don't actually use this class field on CommandHandler -- each subclass
     # gets its own, added by the decorator.
     tagged_commands: Dict[str, Command] = {}
@@ -52,9 +53,6 @@ class CommandHandler(base.Handler):
             return None
 
     def check(self, message: base.Message) -> bool:
-        # TODO: Replace this with proper type handling.
-        if not isinstance(message, base.Message):
-            return False
         return self._cmd_argstring(message) is not None
 
     def run(self, message: base.Message) -> Optional[str]:
@@ -105,25 +103,11 @@ def _args(argtypes: List[Type], cmd: Command, argstring: str) -> List[Any]:
             # We're off the end of argstrings, so there are fewer args provided
             # than expected. That's allowed, if all the remaining args are
             # Optional. In that case, extend it with Nones.
-            if not _is_optional(argtype):
+            if not types.is_optional(argtype):
                 raise UsageError(cmd)
             args.append(None)
 
     return args
-
-
-def _is_optional(t: Type) -> bool:
-    # Optional[T] is just sugar for Union[T, None], so really what we want to
-    # know is, is the given type a Union that has None as one of its members?
-    # Unfortunately some of this is still undocumented as of 3.7, so this may
-    # need to be updated for future versions.
-    #
-    # The most elegant implementation would be "return isinstance(None, t)" but
-    # subscripted generics like Union don't work with isinstance.
-    if not isinstance(t, _GenericAlias):
-        return False
-    t = cast(_GenericAlias, t)
-    return t.__origin__ == Union and type(None) in t.__args__
 
 
 def _convert_arg(t: Type[T], value: str) -> T:
@@ -190,7 +174,7 @@ class UsageError(base.UserError):
         for name, param in params:
             if param.annotation == base.Message:
                 continue
-            if _is_optional(param.annotation):
+            if types.is_optional(param.annotation):
                 usage.append(f"[<{name}>]")
             else:
                 usage.append(f"<{name}>")
