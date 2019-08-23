@@ -3,11 +3,12 @@ import logging
 import sys
 import threading
 from datetime import datetime
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, List, cast
 
 import attr
 import flask
 import requests
+from mypy_extensions import TypedDict
 
 import secret
 from impbot.connections import stdio
@@ -21,9 +22,12 @@ from impbot.util.twitch_util import OFFLINE
 
 logger = logging.getLogger(__name__)
 
-UpdateValue = Union[str, int, List[int]]
-UpdateEntry = Dict[str, UpdateValue]
-UpdateBody = Dict[str, List[UpdateEntry]]
+FollowData = TypedDict("FollowData",
+                       {"from_id": str, "from_name": str, "to_id": str,
+                        "to_name": str, "followed_at": str})
+UpdateBody = TypedDict(
+    "UpdateBody",
+    {"data": Union[List[FollowData], List[twitch_util.StreamData]]})
 
 
 @attr.s(auto_attribs=True)
@@ -52,6 +56,7 @@ class StreamChangedEvent(TwitchWebhookEvent):
 class NewFollowerEvent(TwitchWebhookEvent):
     follower_name: str
     time: datetime
+
 
 
 class TwitchWebhookConnection(base.Connection):
@@ -140,6 +145,11 @@ class TwitchWebhookConnection(base.Connection):
         return flask.Response(status=200)
 
     def _parse(self, topic: str, body: UpdateBody) -> None:
+        # Safe to cast away the Optional because on_event is set first in run().
+        # (Calls to _parse come from the web server, not from this connection
+        # -- but requests won't come until after we subscribe in run(), so
+        # there's still no race in practice.)
+        self.on_event = cast(base.EventCallback, self.on_event)
         """Parses a JSON update and produces zero or more events."""
         if "/streams" in topic:
             if not body["data"]:
@@ -149,19 +159,21 @@ class TwitchWebhookConnection(base.Connection):
                 return
 
             data = body["data"][0]
+            data = cast(twitch_util.OnlineStreamData, data)
             if self.last_data == OFFLINE:
-                game = twitch_util.game_name(data["game_id"])
+                game = twitch_util.game_name(int(data["game_id"]))
                 self.on_event(StreamStartedEvent(data["title"], game))
             else:
                 if data["title"] != self.last_data["title"]:
                     title = data["title"]
                     self.on_event(StreamChangedEvent(title=title, game=None))
                 if data["game_id"] != self.last_data["game_id"]:
-                    game = twitch_util.game_name(data["game_id"])
+                    game = twitch_util.game_name(int(data["game_id"]))
                     self.on_event(StreamChangedEvent(title=None, game=game))
             self.last_data = data
         elif "/follows" in topic:
             data = body["data"][0]
+            data = cast(FollowData, data)
             time = datetime.strptime(data["followed_at"], "%Y-%m-%dT%H:%M:%S%z")
             self.on_event(NewFollowerEvent(data["from_name"], time))
 
@@ -195,3 +207,4 @@ def _topic(link_header: str) -> str:
         url, rel = link.split("; ", 1)
         if rel == 'rel="self"':
             return url[1:-1]  # Strip off <>.
+    raise base.ServerError(f'No rel="self": {link_header}')

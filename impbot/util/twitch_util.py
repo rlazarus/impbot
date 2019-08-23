@@ -3,10 +3,11 @@ import json
 import logging
 import random
 import string
-from typing import Dict, Union, Optional
+from typing import Dict, Union, Optional, List
 from urllib import parse
 
 import requests
+from mypy_extensions import TypedDict
 
 import secret
 from impbot.core import base
@@ -109,8 +110,15 @@ def nonce() -> str:
     return "".join(random.choices(alphabet, k=30))
 
 
-StreamData = Dict[str, Union[str, int]]
-OFFLINE: StreamData = dict()
+OnlineStreamData = TypedDict("OnlineStreamData",
+                       {"id": str, "user_id": str, "user_name": str,
+                         "game_id": str, "community_ids": List[str],
+                         "type": str, "title": str, "viewer_count": int,
+                         "started_at": str, "language": str,
+                         "thumbnail_url": str})
+OfflineStreamData = TypedDict("OfflineStreamData", {})  # Always empty.
+StreamData = Union[OnlineStreamData, OfflineStreamData]
+OFFLINE = OfflineStreamData()
 
 
 def get_stream_data(user_id: Optional[int] = None,
