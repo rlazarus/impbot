@@ -3,6 +3,7 @@ import json
 import logging
 import random
 import string
+import threading
 from typing import Dict, Union, Optional, List
 from urllib import parse
 
@@ -21,14 +22,16 @@ class TwitchOAuth:
         self.streamer_username = streamer_username
         # TODO: Migrate this over in the DB and rename the namespace.
         self.data = data.Namespace("TwitchEventConnection")
+        self.lock = threading.Lock()
 
     def maybe_authorize(self) -> None:
         """
         Go through the initial authorization flow if it's our first time running
         and we don't have an access code yet.
         """
-        if not self.has_access_token:
-            self.authorize()
+        with self.lock:
+            if not self.has_access_token:
+                self.authorize()
 
     def authorize(self) -> None:
         # TODO: Now that there's a web server built in, do the server side of

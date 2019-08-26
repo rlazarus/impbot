@@ -29,6 +29,12 @@ class HueClient:
         self.data = data.Namespace("HueClient")
         self.username = username
 
+    def startup(self) -> None:
+        if not (self.data.exists("access_token") and
+                self.data.exists("refresh_token")):
+            # TODO: Add a first-time setup flow. For now, they're set manually.
+            raise base.AdminError("access_token and refresh_token not in DB")
+
     @property
     def enabled(self) -> bool:
         """
@@ -101,12 +107,6 @@ class HueClient:
             self.data.set(f"{canon_name} id", id)
 
     def _access_token(self) -> str:
-        # TODO: Move this back into __init__ once data is available there.
-        if not (self.data.exists("access_token") and
-                self.data.exists("refresh_token")):
-            # TODO: Add a first-time setup flow. For now, they're set manually.
-            raise base.AdminError("access_token and refresh_token not in DB")
-
         # First, refresh if necessary.
         expiration_timestamp = float(self.data.get("access_token_expires", "0"))
         expiration = datetime.datetime.fromtimestamp(
@@ -158,6 +158,9 @@ class HueHandler(command.CommandHandler):
     def __init__(self, hue_client: HueClient) -> None:
         super().__init__()
         self.hue_client = hue_client
+
+    def startup(self) -> None:
+        self.hue_client.startup()
 
     def run_lightson(self, message: base.Message) -> Optional[str]:
         if not message.user.admin:

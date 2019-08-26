@@ -160,10 +160,12 @@ string-key-string-value interface to the underlying table, so a handler might
 say `self.data.set("name", "impbot")`, and then subsequent calls to
 `self.data.get("name")` would return `"impbot"` -- but only in the same handler.
 
-For now, calling methods on the namespace from a handler's `__init__` method
-will raise an error, as the database hasn't been initialized at that phase of
-the bot's startup; data should only be used in `check` or `run`. This might
-change in the future.
+Calling methods on the namespace from a handler's `__init__` method will raise
+an error, as the database hasn't been initialized at that phase of the bot's
+startup. Instead, handlers can optionally override the `startup` method, which
+is called when the database is ready but before any events are processed. If
+your handler needs anything from the database in order to be ready to serve, you
+can do that work in `startup`.
 
 ## Connections
 

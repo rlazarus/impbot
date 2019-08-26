@@ -123,6 +123,15 @@ class Handler(Module, abc.ABC, Generic[E]):
     def __init__(self) -> None:
         self.data = data.Namespace(type(self).__name__)
 
+    def startup(self) -> None:
+        """
+        Called after the bot is initialized but before any events are received.
+
+        Subclasses may override this method to do any setup work that requires
+        access to the database. The default implementation does nothing.
+        """
+        pass
+
     @abc.abstractmethod
     def check(self, event: E) -> bool:
         pass
@@ -134,6 +143,9 @@ class Handler(Module, abc.ABC, Generic[E]):
     def typecheck(self, event: Event):
         """
         Returns True if this Handler can accept events of this event's type.
+
+        The default implementation uses the type annotations provided by the
+        subclass; subclasses shouldn't need to override it.
         """
         # Because generics are subject to type erasure, we can't just look at
         # the type parameter; that is, at runtime we can't see that it was

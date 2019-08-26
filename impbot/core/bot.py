@@ -78,6 +78,8 @@ class Bot:
     def handle_queue(self) -> None:
         if self.web:
             self.web.flask.app_context().push()
+        for handler in self.handlers:
+            handler.startup()
         while True:
             event = self._queue.get()
             if isinstance(event, Shutdown):

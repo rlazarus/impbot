@@ -17,6 +17,9 @@ class TwitchEditorHandler(command.CommandHandler):
         self.channel_id = twitch_util.get_channel_id(streamer_username)
         self.oauth = twitch_util.TwitchOAuth(streamer_username)
 
+    def startup(self) -> None:
+        self.oauth.maybe_authorize()
+
     def run_title(self, message: base.Message, title: Optional[str]):
         if not title:
             data = twitch_util.get_stream_data(user_id=self.channel_id)
@@ -47,11 +50,6 @@ class TwitchEditorHandler(command.CommandHandler):
                        game: Optional[str] = None) -> None:
         if not title and not game:
             raise ValueError("Must pass either title or game.")
-
-        # TODO: Move this to a startup phase, after the DB is available but
-        #       before we print "ready", so that nobody is surprised when they
-        #       need to authorize after startup time.
-        self.oauth.maybe_authorize()
 
         url = f"https://api.twitch.tv/kraken/channels/{channel_id}"
         headers = {
