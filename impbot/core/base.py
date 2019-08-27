@@ -1,7 +1,7 @@
 import abc
 import inspect
 from typing import (Optional, Callable, ClassVar, List, Generic, TypeVar,
-                    TYPE_CHECKING)
+                    TYPE_CHECKING, Type)
 
 import attr
 
@@ -120,6 +120,16 @@ E = TypeVar("E", bound=Event, contravariant=True)
 
 
 class Handler(Module, abc.ABC, Generic[E]):
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        if cls._event_type() == inspect.Parameter.empty:
+            raise TypeError(
+                "Type annotation for check() and run() parameter is required.")
+        if not issubclass(cls._event_type(), Event):
+            raise TypeError(
+                "Type annotation for check() and run() parameter must be Event "
+                "or a subclass.")
+
     def __init__(self) -> None:
         self.data = data.Namespace(type(self).__name__)
 
@@ -147,13 +157,15 @@ class Handler(Module, abc.ABC, Generic[E]):
         The default implementation uses the type annotations provided by the
         subclass; subclasses shouldn't need to override it.
         """
+        return types.is_instance(event, self._event_type())
+
+    @classmethod
+    def _event_type(cls) -> Type[E]:
         # Because generics are subject to type erasure, we can't just look at
         # the type parameter; that is, at runtime we can't see that it was
         # defined as Handler[Message], so we can't use that to conclude that
         # Message subtypes are okay. Instead we inspect the type annotation of
         # the check method's argument, which should be the same type.
-        # TODO: This assumes the type hint is present -- if it's not, we should
-        #       die on startup, rather than when we go to look at it.
-        params = inspect.signature(self.check).parameters
-        [event_param] = params.values()
-        return types.is_instance(event, event_param.annotation)
+        params = inspect.signature(cls.check).parameters
+        [_, event_param] = params.values()
+        return event_param.annotation
