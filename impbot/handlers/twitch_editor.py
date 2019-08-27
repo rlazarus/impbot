@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, cast
 
 import requests
 
@@ -25,7 +25,6 @@ class TwitchEditorHandler(command.CommandHandler):
             data = twitch_util.get_stream_data(user_id=self.channel_id)
             if data == twitch_util.OFFLINE:
                 return "Stream is offline."
-            logger.debug(data)
             current_title = data["title"]
             return f"Current title: {current_title}"
         if not (message.user.moderator or message.user.admin):
@@ -38,7 +37,8 @@ class TwitchEditorHandler(command.CommandHandler):
             data = twitch_util.get_stream_data(user_id=self.channel_id)
             if data == twitch_util.OFFLINE:
                 return "Stream is offline."
-            game_id = data["game_id"]
+            data = cast(twitch_util.OnlineStreamData, data)
+            game_id = int(data["game_id"])
             current_game = twitch_util.game_name(game_id)
             return f"Current game: {current_game}"
         if not (message.user.moderator or message.user.admin):
