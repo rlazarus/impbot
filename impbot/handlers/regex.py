@@ -17,20 +17,20 @@ class RegexHandler(base.Handler[base.Message]):
                 (re.compile(k), v) for k, v in patterns.items())
         except sre_compile.error as e:
             raise base.AdminError(e)
-        self._action: Optional[str] = None
+        self._response: Optional[str] = None
 
     def check(self, message: base.Message) -> bool:
-        for pattern, action in self.patterns.items():
+        for pattern, response in self.patterns.items():
             match = pattern.search(message.text)
             if match:
-                self._action = action
+                self._response = response
                 return True
-        self._action = None
+        self._response = None
         return False
 
     def run(self, message: base.Message) -> Optional[str]:
         # This is super not thread-safe -- we rely on calling run() exactly once
         # each time check() returns True, with nothing happening in between.
-        action = self._action
-        self._action = None
-        return action
+        response = self._response
+        self._response = None
+        return response
