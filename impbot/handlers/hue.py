@@ -1,6 +1,5 @@
 import datetime
 import hashlib
-import json
 import logging
 import random
 import re
@@ -75,7 +74,7 @@ class HueClient:
     def _action(self, **body) -> None:
         response = requests.put(
             f"https://api.meethue.com/bridge/{self.username}/groups/1/action",
-            data=json.dumps(body),
+            json=body,
             headers={"Authorization": f"Bearer {self._access_token()}",
                      "Content-Type": "application/json"})
         _log(response)
@@ -94,7 +93,7 @@ class HueClient:
         if response.status_code != 200:
             raise HueError
 
-        scenes = json.loads(response.text)
+        scenes = response.json()
         self.data.clear_all("% name")
         self.data.clear_all("% id")
         for id, fields in scenes.items():
@@ -145,7 +144,7 @@ class HueClient:
             params={"grant_type": "refresh_token"},
             data={"refresh_token": self.data.get("refresh_token")})
         _log(response)
-        tokens = json.loads(response.text)
+        tokens = response.json()
         self.data.set("access_token", tokens["access_token"])
         self.data.set("refresh_token", tokens["refresh_token"])
         ttl = datetime.timedelta(

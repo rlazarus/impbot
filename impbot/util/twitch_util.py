@@ -1,5 +1,4 @@
 import functools
-import json
 import logging
 import random
 import string
@@ -83,7 +82,7 @@ class TwitchOAuth:
             })
         if response.status_code != 200:
             raise base.ServerError(f"{response.status_code} {response.text}")
-        body = json.loads(response.text)
+        body = response.json()
         if "error" in body:
             raise base.ServerError(body)
         self.data.set("access_token", body["access_token"])
@@ -102,7 +101,7 @@ def _get_channel_id(streamer_username: str) -> int:
                             headers={"Client-ID": secret.TWITCH_CLIENT_ID})
     if response.status_code != 200:
         raise base.ServerError(f"{response.status_code} {response.text}")
-    body = json.loads(response.text)
+    body = response.json()
     if not body["data"]:
         raise base.AdminError(f"No Twitch channel '{streamer_username}'")
     return int(body["data"][0]["id"])
