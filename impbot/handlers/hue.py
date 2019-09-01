@@ -219,11 +219,9 @@ class TwitchEventBlinkHandler(base.Handler[twitch_event.TwitchEvent]):
 
 class TwitchEnableDisableHandler(
         base.Handler[twitch_webhook.TwitchWebhookEvent]):
-    def __init__(self, hue_client: HueClient,
-                 chat_conn: twitch.TwitchChatConnection) -> None:
+    def __init__(self, hue_client: HueClient) -> None:
         super().__init__()
         self.hue_client = hue_client
-        self.chat_conn = chat_conn
 
     def check(self, event: twitch_webhook.TwitchWebhookEvent) -> bool:
         return True
