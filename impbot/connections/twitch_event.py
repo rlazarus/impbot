@@ -136,16 +136,16 @@ def handle_message(on_event: base.EventCallback, body: Dict[str, Any]):
     if "-bits-" in topic:
         mdata = msg["data"]
         user = base.User(mdata["user_name"]) if "user_name" in mdata else None
-        on_event(Bits(user, mdata["bits_used"], mdata["chat_message"]))
+        on_event(Bits(None, user, mdata["bits_used"], mdata["chat_message"]))
     elif "-subscribe-" in topic:
         if "recipient_user_name" in msg:
             user = base.User(msg["user_name"]) if "user_name" in msg else None
             on_event(GiftSubscription(
-                user, SUB_PLANS[msg["sub_plan"]], msg["months"], None,
+                None, user, SUB_PLANS[msg["sub_plan"]], msg["months"], None,
                 msg["sub_message"]["message"], msg["recipient_user_name"]))
         else:
             on_event(Subscription(
-                base.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
+                None, base.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
                 msg["cumulative_months"], msg.get("streak_months", None),
                 msg["sub_message"]["message"]))
 

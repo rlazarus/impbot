@@ -18,7 +18,7 @@ class StdioConnection(base.Connection):
         # Because of the way input() works, we only exit the loop after being
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():
-            m = base.Message(base.User("stdin"), input("> "), self.say)
+            m = base.Message(self, base.User("stdin"), input("> "))
             on_event(m)
 
     def shutdown(self) -> None:

@@ -6,6 +6,8 @@ import threading
 from logging import handlers
 from typing import Optional, Dict, Sequence, List, Any
 
+import attr
+
 from impbot.core import base
 from impbot.core import data
 from impbot.core import web
@@ -35,8 +37,9 @@ def init_logging(path: str) -> None:
     root_logger.addHandler(file_handler)
 
 
+@attr.s
 class Shutdown(base.Event):
-    pass
+    reply_connection: None = attr.ib(default=None, init=False)
 
 
 class Bot:
@@ -99,15 +102,21 @@ class Bot:
             try:
                 response = handler.run(event)
                 if response:
-                    event.reply(response)
+                    self.reply(event, response)
             except base.UserError as e:
-                event.reply(str(e))
+                self.reply(event, str(e))
             except (base.AdminError, base.ServerError) as e:
                 # TODO: Add some kind of direct alerting to the admins, maybe
                 #  via DMs.
                 logging.exception(e)
-                event.reply("Uh oh!")
+                self.reply(event, "Uh oh!")
             return
+
+    def reply(self, event: base.Event, response: str):
+        if event.reply_connection is None:
+            raise ValueError(
+                f"{type(event).__name__} event can't take a chat response")
+        event.reply_connection.say(response)
 
     def run_connection(self, connection: base.Connection):
         if self.web:

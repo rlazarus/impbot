@@ -7,6 +7,7 @@ from impbot.core import base
 
 @attr.s(auto_attribs=True)
 class LambdaEvent(base.Event):
+    reply_connection: None = attr.ib(default=None, init=False)
     run: Callable[[], None]
 
 

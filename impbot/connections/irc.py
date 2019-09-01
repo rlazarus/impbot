@@ -51,7 +51,7 @@ class IrcConnection(base.Connection, client.SimpleIRCClient):
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
         user = self._user(event)
-        self.on_event(base.Message(user, event.arguments[0], self.say))
+        self.on_event(base.Message(self, user, event.arguments[0]))
 
     # Hook for subclasses to override:
 

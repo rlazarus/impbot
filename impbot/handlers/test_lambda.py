@@ -11,9 +11,10 @@ class LambdaHandlerTest(unittest.TestCase):
         handler = lambda_event.LambdaHandler()
         run = mock.Mock()
 
-        self.assertFalse(handler.typecheck(base.Event()))
+        self.assertFalse(handler.typecheck(base.Event(None)))
 
         event = lambda_event.LambdaEvent(run=run)
+        self.assertTrue(handler.typecheck(event))
         self.assertTrue(handler.check(event))
         handler.run(event)
         run.assert_called()

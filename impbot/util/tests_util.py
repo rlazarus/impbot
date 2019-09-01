@@ -10,13 +10,13 @@ from impbot.core import data
 class HandlerTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.reply: Callable[[str], None] = mock.Mock()
+        self.conn: base.Connection = mock.Mock()
         self.handler: base.Handler[base.Message] = None
 
     def _message(self, input: str, user: Optional[base.User] = None):
         if not user:
             user = base.User("username")
-        return base.Message(user, input, self.reply)
+        return base.Message(self.conn, user, input)
 
     def assert_no_trigger(self, input: str) -> None:
         self.assertFalse(self.handler.check(self._message(input)))

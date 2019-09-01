@@ -228,19 +228,21 @@ class TwitchEnableDisableHandler(
     def check(self, event: twitch_webhook.TwitchWebhookEvent) -> bool:
         return True
 
-    def run(self, event: twitch_webhook.TwitchWebhookEvent) -> None:
-        # TODO: Refactor so the replies here can be returned instead of having
-        #   a reference to a TwitchChatConnection.
+    def run(self, event: twitch_webhook.TwitchWebhookEvent) -> Optional[str]:
         if isinstance(event, twitch_webhook.StreamStartedEvent):
             self.hue_client.enabled = True
-            self.chat_conn.say("PogChamp PogChamp")
+            return "PogChamp PogChamp"
 
         if isinstance(event, twitch_webhook.StreamEndedEvent):
             self.hue_client.enabled = False
-            self.chat_conn.say("\U0001f44b \U0001f44b")  # Waving Hand emoji
+            return "\U0001f44b \U0001f44b"  # Waving Hand emoji
 
         if isinstance(event, twitch_webhook.NewFollowerEvent):
             self.hue_client.blink()
+            return None
+
+        # Ignore StreamChangedEvents.
+        return None
 
 
 def _canonicalize(name: str) -> str:

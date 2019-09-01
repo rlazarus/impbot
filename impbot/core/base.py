@@ -49,16 +49,15 @@ class User:
         return self.name
 
 
+@attr.s(auto_attribs=True)
 class Event:
-    def reply(self, text: str) -> None:
-        raise NotImplementedError
+    reply_connection: Optional["Connection"]
 
 
 @attr.s(auto_attribs=True)
 class Message(Event):
     user: User
     text: str
-    reply: Callable[[str], None]
 
 
 class UserError(Exception):

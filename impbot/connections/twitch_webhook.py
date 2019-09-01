@@ -11,7 +11,7 @@ import requests
 from mypy_extensions import TypedDict
 
 import secret
-from impbot.connections import stdio
+from impbot.connections import stdio, twitch
 from impbot.core import base
 from impbot.core import bot
 from impbot.core import web
@@ -30,12 +30,10 @@ UpdateBody = TypedDict(
     {"data": Union[List[FollowData], List[twitch_util.StreamData]]})
 
 
-@attr.s(auto_attribs=True)
 class TwitchWebhookEvent(base.Event):
     pass
 
 
-@attr.s(auto_attribs=True)
 class StreamEndedEvent(TwitchWebhookEvent):
     pass
 
@@ -58,9 +56,10 @@ class NewFollowerEvent(TwitchWebhookEvent):
     time: datetime
 
 
-
 class TwitchWebhookConnection(base.Connection):
-    def __init__(self, streamer_username: str) -> None:
+    def __init__(self, reply_conn: twitch.TwitchChatConnection,
+                 streamer_username: str) -> None:
+        self.reply_conn = reply_conn
         self.user_id = twitch_util.get_channel_id(streamer_username)
         self.on_event: Optional[base.EventCallback] = None  # Set in run().
         self.last_data = twitch_util.get_stream_data(self.user_id)
@@ -154,7 +153,7 @@ class TwitchWebhookConnection(base.Connection):
         if "/streams" in topic:
             if not body["data"]:
                 if self.last_data != OFFLINE:
-                    self.on_event(StreamEndedEvent())
+                    self.on_event(StreamEndedEvent(self.reply_conn))
                     self.last_data = OFFLINE
                 return
 
@@ -162,20 +161,24 @@ class TwitchWebhookConnection(base.Connection):
             data = cast(twitch_util.OnlineStreamData, data)
             if self.last_data == OFFLINE:
                 game = twitch_util.game_name(int(data["game_id"]))
-                self.on_event(StreamStartedEvent(data["title"], game))
+                self.on_event(StreamStartedEvent(
+                    self.reply_conn, data["title"], game))
             else:
                 if data["title"] != self.last_data["title"]:
                     title = data["title"]
-                    self.on_event(StreamChangedEvent(title=title, game=None))
+                    self.on_event(StreamChangedEvent(
+                        self.reply_conn, title=title, game=None))
                 if data["game_id"] != self.last_data["game_id"]:
                     game = twitch_util.game_name(int(data["game_id"]))
-                    self.on_event(StreamChangedEvent(title=None, game=game))
+                    self.on_event(StreamChangedEvent(
+                        self.reply_conn, title=None, game=game))
             self.last_data = data
         elif "/follows" in topic:
             data = body["data"][0]
             data = cast(FollowData, data)
             time = datetime.strptime(data["followed_at"], "%Y-%m-%dT%H:%M:%S%z")
-            self.on_event(NewFollowerEvent(data["from_name"], time))
+            self.on_event(NewFollowerEvent(
+                self.reply_conn, data["from_name"], time))
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
@@ -186,9 +189,12 @@ if __name__ == "__main__":
     rootLogger.setLevel(logging.DEBUG)
     rootLogger.addHandler(logging.StreamHandler(sys.stdout))
 
+    chat = twitch.TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH,
+                                       "Shrdluuu", [])
     connections = [
         WebServerConnection("127.0.0.1", 5000),
-        TwitchWebhookConnection("Shrdluuu"),
+        chat,
+        TwitchWebhookConnection(chat, "Shrdluuu"),
         stdio.StdioConnection()
     ]
     handlers = [

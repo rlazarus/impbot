@@ -1,5 +1,5 @@
 import unittest
-from typing import Union, Any
+from typing import Union, Any, cast
 from unittest import mock
 
 from impbot.core import bot
@@ -26,7 +26,7 @@ class AnotherFooHandler(command.CommandHandler):
 class OneEventConnection(base.Connection):
     def __init__(self, event: Union[str, base.Event]) -> None:
         if isinstance(event, str):
-            event = base.Message(base.User("username"), event, self.say)
+            event = base.Message(self, base.User("username"), event)
         self.event = event
 
     def say(self, text: str) -> None:
@@ -41,8 +41,9 @@ class OneEventConnection(base.Connection):
 
 class BotTest(unittest.TestCase):
     def init(self, handlers):
-        conn: base.Connection = mock.Mock(spec=base.Connection)
-        return bot.Bot(None, [conn], handlers)
+        self.conn: base.Connection = mock.Mock(spec=base.Connection)
+        self.reply = cast(mock.Mock, self.conn.say)
+        return bot.Bot(None, [self.conn], handlers)
 
     def testInit(self):
         self.init([AnotherFooHandler()])
@@ -54,13 +55,11 @@ class BotTest(unittest.TestCase):
 
     def testHandle(self):
         b = self.init([FooHandler(), BarHandler()])
-        reply = mock.Mock()
-        b.handle(base.Message(base.User("username"), "!foo", reply))
-        reply.assert_called_with("foo!")
-
-        reply.reset_mock()
-        b.handle(base.Message(base.User("username"), "not !foo", reply))
-        reply.assert_not_called()
+        b.handle(base.Message(self.conn, base.User("username"), "!foo"))
+        self.reply.assert_called_with("foo!")
+        self.reply.reset_mock()
+        b.handle(base.Message(self.conn, base.User("username"), "not !foo"))
+        self.reply.assert_not_called()
 
     def testQuit(self):
         handler = mock.Mock(spec=base.Handler)
