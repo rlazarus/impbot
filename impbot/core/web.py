@@ -43,9 +43,6 @@ class WebServerConnection(base.Connection):
                 view_func = _DelegatingView.as_view(endpoint, self, view_func)
                 self.flask.add_url_rule(url, view_func=view_func, **options)
 
-    def say(self, text: str) -> None:
-        raise NotImplementedError
-
     def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event
         self.flask.app_context().push()

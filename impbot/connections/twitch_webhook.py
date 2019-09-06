@@ -57,17 +57,13 @@ class NewFollowerEvent(TwitchWebhookEvent):
 
 
 class TwitchWebhookConnection(base.Connection):
-    def __init__(self, reply_conn: twitch.TwitchChatConnection,
+    def __init__(self, reply_conn: base.ChatConnection,
                  streamer_username: str) -> None:
         self.reply_conn = reply_conn
         self.user_id = twitch_util.get_channel_id(streamer_username)
         self.on_event: Optional[base.EventCallback] = None  # Set in run().
         self.last_data = twitch_util.get_stream_data(self.user_id)
         self.shutdown_event = threading.Event()
-
-    def say(self, text: str) -> None:
-        raise NotImplementedError("TwitchWebhookConnection doesn't have chat"
-                                  "functionality -- use TwitchChatConnection.")
 
     def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event

@@ -10,7 +10,8 @@ from impbot.handlers import custom
 from impbot.handlers import hello
 from impbot.handlers import roulette
 
-class IrcConnection(base.Connection, client.SimpleIRCClient):
+
+class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
                  password: Optional[str] = None,
                  capabilities: Optional[List[str]] = None) -> None:

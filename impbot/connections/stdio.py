@@ -7,7 +7,7 @@ from impbot.handlers import hello
 from impbot.handlers import roulette
 
 
-class StdioConnection(base.Connection):
+class StdioConnection(base.ChatConnection):
     def __init__(self) -> None:
         self._canceled = threading.Event()
 

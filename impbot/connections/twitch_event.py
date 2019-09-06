@@ -51,10 +51,6 @@ class TwitchEventConnection(base.Connection):
 
         asyncio.set_event_loop(self.event_loop)
 
-    def say(self, text: str) -> None:
-        raise NotImplementedError("TwitchEventConnection doesn't have chat"
-                                  "functionality -- use TwitchChatConnection.")
-
     def run(self, on_event: base.EventCallback) -> None:
         self.oauth.maybe_authorize()
 

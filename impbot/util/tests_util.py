@@ -10,7 +10,7 @@ from impbot.core import data
 class HandlerTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.conn: base.Connection = mock.Mock()
+        self.conn: base.ChatConnection = mock.Mock()
         self.handler: base.Handler[base.Message] = None
 
     def _message(self, input: str, user: Optional[base.User] = None):

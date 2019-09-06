@@ -23,7 +23,7 @@ class AnotherFooHandler(command.CommandHandler):
         pass
 
 
-class OneEventConnection(base.Connection):
+class OneEventConnection(base.ChatConnection):
     def __init__(self, event: Union[str, base.Event]) -> None:
         if isinstance(event, str):
             event = base.Message(self, base.User("username"), event)
@@ -41,7 +41,7 @@ class OneEventConnection(base.Connection):
 
 class BotTest(unittest.TestCase):
     def init(self, handlers):
-        self.conn: base.Connection = mock.Mock(spec=base.Connection)
+        self.conn: base.ChatConnection = mock.Mock(spec=base.ChatConnection)
         self.reply = cast(mock.Mock, self.conn.say)
         return bot.Bot(None, [self.conn], handlers)
 

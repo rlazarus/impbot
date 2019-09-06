@@ -51,7 +51,7 @@ class User:
 
 @attr.s(auto_attribs=True)
 class Event:
-    reply_connection: Optional["Connection"]
+    reply_connection: Optional["ChatConnection"]
 
 
 @attr.s(auto_attribs=True)
@@ -103,15 +103,17 @@ class Module:
 
 class Connection(Module, abc.ABC):
     @abc.abstractmethod
-    def say(self, text: str) -> None:
-        pass
-
-    @abc.abstractmethod
     def run(self, on_event: EventCallback) -> None:
         pass
 
     @abc.abstractmethod
     def shutdown(self) -> None:
+        pass
+
+
+class ChatConnection(Connection, abc.ABC):
+    @abc.abstractmethod
+    def say(self, text: str) -> None:
         pass
 
 
