@@ -38,6 +38,16 @@ class TwitchChatConnection(irc.IrcConnection):
         moderator = "broadcaster" in badges or "moderator" in badges
         return TwitchUser(event.source.nick, admin, display_name, moderator)
 
+    def say(self, text: str) -> None:
+        # Twitch commands are sent as PRIVMSGs that start with "/" or "." We
+        # avoid triggering them via say(), so that the bot doesn't become a
+        # confused deputy: if the bot is a mod, unprivileged users can't trick
+        # it into (for example) banning people, even if a handler lets them
+        # control the beginning of the output.
+        if text.startswith("/") or text.startswith("."):
+            text = " " + text
+        super().say(text)
+
 
 @attr.s(frozen=True)
 class TwitchUser(base.User):
