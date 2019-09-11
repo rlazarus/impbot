@@ -1,3 +1,4 @@
+import datetime
 import logging
 import sys
 from typing import Optional, Set, List
@@ -16,6 +17,23 @@ import secret
 logger = logging.getLogger(__name__)
 
 
+@attr.s(frozen=True)
+class TwitchUser(base.User):
+    display_name: Optional[str] = attr.ib(cmp=False, default=None)
+    # The streamer doesn't have a mod badge, but they have a superset of
+    # mod privileges, so this is true for them too.
+    moderator: Optional[bool] = attr.ib(cmp=False, default=None)
+    badges: Optional[Set[str]] = attr.ib(cmp=False, default=None)
+
+    def __str__(self) -> str:
+        return self.display_name if self.display_name is not None else self.name
+
+
+@attr.s(auto_attribs=True)
+class TwitchMessage(base.Message):
+    id: str
+
+
 class TwitchChatConnection(irc.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
                  streamer_username: str, admins: List[str]) -> None:
@@ -26,7 +44,7 @@ class TwitchChatConnection(irc.IrcConnection):
                          capabilities=["twitch.tv/tags", "twitch.tv/commands"])
         self.admins = admins
 
-    def _user(self, event: client.Event) -> base.User:
+    def _message(self, event: client.Event) -> base.Message:
         tags = {i['key']: i['value'] for i in event.tags}
         if "badges" in tags and tags["badges"]:
             # Each badge is in the form <name>/<number> (e.g. number of months
@@ -38,7 +56,8 @@ class TwitchChatConnection(irc.IrcConnection):
         display_name = tags.get("display-name", event.source.nick)
         admin = "broadcaster" in badges or event.source.nick in self.admins
         moderator = "broadcaster" in badges or "moderator" in badges
-        return TwitchUser(event.source.nick, admin, display_name, moderator)
+        user = TwitchUser(event.source.nick, admin, display_name, moderator)
+        return TwitchMessage(self, user, event.arguments[0], tags.get("id", ""))
 
     def say(self, text: str) -> None:
         # Twitch commands are sent as PRIVMSGs that start with "/" or "." We
@@ -56,17 +75,26 @@ class TwitchChatConnection(irc.IrcConnection):
         # Superclass automatically reconnects, since shutdown() wasn't called.
         self.disconnect()
 
+    # TODO: Add a more general moderation API to ChatConnection.
+    def timeout(self, target: base.User, duration: datetime.timedelta,
+                reply: Optional[str] = None) -> None:
+        super().say(f".timeout {target.name} {duration.total_seconds():.0f}")
+        if reply:
+            self.say(reply)
 
-@attr.s(frozen=True)
-class TwitchUser(base.User):
-    display_name: Optional[str] = attr.ib(cmp=False, default=None)
-    # The streamer doesn't have a mod badge, but they have a superset of
-    # mod privileges, so this is true for them too.
-    moderator: Optional[bool] = attr.ib(cmp=False, default=None)
-    badges: Optional[Set[str]] = attr.ib(cmp=False, default=None)
+    def permaban(self, target: base.User, reply: Optional[str] = None) -> None:
+        super().say(f".ban {target.name}")
+        if reply:
+            self.say(reply)
 
-    def __str__(self) -> str:
-        return self.display_name if self.display_name is not None else self.name
+    def delete(self, message: TwitchMessage,
+               reply: Optional[str] = None) -> None:
+        if not message.id:
+            raise base.ServerError(
+                f"Message {message} is missing id, can't delete")
+        super().say(f".delete {message.id}")
+        if reply:
+            self.say(reply)
 
 
 if __name__ == "__main__":
