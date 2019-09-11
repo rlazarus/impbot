@@ -82,8 +82,7 @@ class IrcConnection(base.ChatConnection):
 
     def on_pubmsg(self, _: client.ServerConnection,
                   event: client.Event) -> None:
-        user = self._user(event)
-        self.on_event(base.Message(self, user, event.arguments[0]))
+        self.on_event(self._message(event))
 
     def on_ping(self, _conn: client.ServerConnection,
                 _event: client.Event) -> None:
@@ -91,5 +90,6 @@ class IrcConnection(base.ChatConnection):
 
     # Hook for subclasses to override:
 
-    def _user(self, event: client.Event) -> base.User:
-        return base.User(event.source.nick)
+    def _message(self, event: client.Event) -> base.Message:
+        user = base.User(event.source.nick)
+        return base.Message(self, user, event.arguments[0])
