@@ -27,7 +27,7 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
         self.password = password
         self.capabilities = capabilities if capabilities is not None else []
         self.shutdown_event = threading.Event()
-        self.expect_disconnection = False
+        self.expect_disconnection = threading.Event()
         self.on_event: Optional[base.EventCallback] = None
 
     # bot.Connection overrides:
@@ -45,13 +45,16 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
             while self.connection.connected:
                 self.reactor.process_once(0.2)
             logger.info("Disconnected.")
-            if not self.expect_disconnection:
+            if not self.expect_disconnection.is_set():
                 time.sleep(3)  # It's, uh, exponential backoff with a base of 1.
-            self.expect_disconnection = False
+            self.expect_disconnection.clear()
 
     def shutdown(self) -> None:
-        self.expect_disconnection = True
         self.shutdown_event.set()
+        self.disconnect()
+
+    def disconnect(self) -> None:
+        self.expect_disconnection.set()
         self.connection.close()
 
     # client.SimpleIRCClient overrides:

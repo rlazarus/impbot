@@ -13,6 +13,8 @@ from impbot.handlers import roulette
 from impbot.connections import irc
 import secret
 
+logger = logging.getLogger(__name__)
+
 
 class TwitchChatConnection(irc.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
@@ -21,7 +23,7 @@ class TwitchChatConnection(irc.IrcConnection):
             oauth_token = "oauth:" + oauth_token
         super().__init__("irc.chat.twitch.tv", 6667, bot_username.lower(),
                          "#" + streamer_username.lower(), password=oauth_token,
-                         capabilities=["twitch.tv/tags"])
+                         capabilities=["twitch.tv/tags", "twitch.tv/commands"])
         self.admins = admins
 
     def _user(self, event: client.Event) -> base.User:
@@ -48,6 +50,11 @@ class TwitchChatConnection(irc.IrcConnection):
             text = " " + text
         super().say(text)
 
+    def on_reconnect(self, _conn: client.ServerConnection,
+                     _event: client.Event) -> None:
+        logger.info("Got a RECONNECT command from Twitch.")
+        # Superclass automatically reconnects, since shutdown() wasn't called.
+        self.disconnect()
 
 @attr.s(frozen=True)
 class TwitchUser(base.User):
@@ -62,9 +69,9 @@ class TwitchUser(base.User):
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(logging.StreamHandler(sys.stdout))
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(logging.StreamHandler(sys.stdout))
 
     connections = [
         TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu",
