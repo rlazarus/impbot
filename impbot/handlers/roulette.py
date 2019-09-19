@@ -6,7 +6,10 @@ from impbot.handlers import command
 
 class RouletteHandler(command.CommandHandler):
     def run_roulette(self, message: base.Message, points: int) -> str:
-        starting_points = int(self.data.get(message.user.name, "0"))
+        try:
+            starting_points = int(self.data.get(message.user.name))
+        except KeyError:
+            starting_points = 0
         if starting_points < points:
             if not starting_points:
                 raise base.UserError("You don't have any points!")

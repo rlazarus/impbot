@@ -24,7 +24,10 @@ class CustomRegexHandler(RegexHandler):
 
     def add_pattern(self, pattern: str, response: str) -> None:
         # TODO: Expose this (and edit, delete) in the web UI.
-        id = int(self.data.get("next_id", "0"))
+        try:
+            id = int(self.data.get("next_id"))
+        except KeyError:
+            id = 0
         self.data.set("next_id", str(id + 1))
         self.data.set(f"{id} pattern", pattern)
         self.data.set(f"{id} response", response)

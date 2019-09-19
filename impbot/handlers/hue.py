@@ -107,7 +107,10 @@ class HueClient:
 
     def _access_token(self) -> str:
         # First, refresh if necessary.
-        expiration_timestamp = float(self.data.get("access_token_expires", "0"))
+        try:
+            expiration_timestamp = float(self.data.get("access_token_expires"))
+        except KeyError:
+            expiration_timestamp = 0
         expiration = datetime.datetime.fromtimestamp(
             expiration_timestamp, datetime.timezone.utc)
         if expiration <= datetime.datetime.now(datetime.timezone.utc):

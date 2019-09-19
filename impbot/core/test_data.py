@@ -15,7 +15,6 @@ class DataTest(tests_util.DataHandlerTest):
         foo = FooHandler()
         self.assertFalse(foo.data.exists("testing"))
         self.assertRaises(KeyError, foo.data.get, "testing")
-        self.assertEqual(foo.data.get("testing", "default"), "default")
         self.assertEqual(foo.data.list("ing"), [])
         foo.data.set("testing", "value")
         self.assertTrue(foo.data.exists("testing"))
@@ -33,5 +32,4 @@ class DataTest(tests_util.DataHandlerTest):
         foo.data.unset("testing")
         self.assertFalse(foo.data.exists("testing"))
         self.assertRaises(KeyError, foo.data.get, "testing")
-        self.assertEqual(foo.data.get("testing", "default"), "default")
         self.assertFalse(foo2.data.exists("testing"))

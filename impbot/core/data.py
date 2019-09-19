@@ -42,16 +42,14 @@ class Namespace(object):
             self._conn = sqlite3.connect(_db, uri=True)
         return self._conn
 
-    def get(self, key: str, default: Optional[str] = None) -> str:
+    def get(self, key: str) -> str:
         c = self.conn.execute("SELECT value FROM impbot "
                               "WHERE handler_class=? AND key=?",
                               (self.namespace, key))
         row = c.fetchone()
         if row:
             return row[0]
-        if default is None:
-            raise KeyError
-        return default
+        raise KeyError
 
     def set(self, key: str, value: str) -> None:
         self.conn.execute("REPLACE INTO impbot VALUES(?,?,?)",
