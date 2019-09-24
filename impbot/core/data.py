@@ -26,7 +26,9 @@ def startup(db: str) -> None:
             conn.executescript("""
                 CREATE TABLE keys (key_id    INTEGER PRIMARY KEY,
                                    namespace TEXT,
-                                   key       TEXT);
+                                   key       TEXT,
+                                   type      TEXT NOT NULL
+                                             CHECK (type IN ('KV', 'KKV')));
                 CREATE UNIQUE INDEX idx_keys_nk ON keys (namespace, key);
 
                 CREATE TABLE key_values (key_id INT
@@ -81,9 +83,9 @@ class Namespace(object):
             if row:
                 key_id = row[0]
             else:
-                c = self.conn.execute(
-                    "INSERT INTO keys (namespace, key) VALUES(?, ?)",
-                    (self.namespace, key))
+                c = self.conn.execute("INSERT INTO keys (namespace, key, type) "
+                                      "VALUES(?, ?, 'KV')",
+                                      (self.namespace, key))
                 key_id = c.lastrowid
             self.conn.execute("REPLACE INTO key_values VALUES (?,?)",
                               (key_id, value))
