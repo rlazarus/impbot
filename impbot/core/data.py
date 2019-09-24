@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 import sys
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Union
 
 logger = logging.getLogger(__name__)
 _db: Optional[str] = None
@@ -36,6 +36,14 @@ def startup(db: str) -> None:
                                                 ON DELETE CASCADE,
                                          value  TEXT);
                 CREATE UNIQUE INDEX idx_kv_keyid ON key_values (key_id);
+
+                CREATE TABLE key_subkey_values (key_id INT
+                                                       REFERENCES keys (key_id)
+                                                       ON DELETE CASCADE,
+                                                subkey TEXT,
+                                                value  TEXT);
+                CREATE UNIQUE INDEX idx_kkv_keyid_subkey
+                    ON key_subkey_values (key_id, subkey);
             """)
     conn.close()
 
@@ -64,40 +72,95 @@ class Namespace(object):
             self._conn.execute("PRAGMA FOREIGN_KEYS = on")
         return self._conn
 
-    def get(self, key: str) -> str:
-        c = self.conn.execute("SELECT value FROM keys INNER JOIN key_values "
-                              "ON keys.rowid = key_values.key_id "
-                              "WHERE namespace=? AND key=?",
-                              (self.namespace, key))
-        row = c.fetchone()
-        if row:
-            return row[0]
-        raise KeyError
-
-    def set(self, key: str, value: str) -> None:
-        with self.conn:
-            c = self.conn.execute(
-                "SELECT key_id FROM keys WHERE namespace=? AND key=?",
-                (self.namespace, key))
+    def get(self, key: str, subkey: Optional[str] = None) -> str:
+        if subkey is not None:
+            key_id = self._find_key(self.conn, key, subkeys=True, create=False)
+            c = self.conn.execute("SELECT value FROM key_subkey_values "
+                                  "WHERE key_id=? AND subkey=?",
+                                  (key_id, subkey))
             row = c.fetchone()
             if row:
-                key_id = row[0]
-            else:
-                c = self.conn.execute("INSERT INTO keys (namespace, key, type) "
-                                      "VALUES(?, ?, 'KV')",
-                                      (self.namespace, key))
+                return row[0]
+            raise KeyError
+        else:
+            key_id = self._find_key(self.conn, key, subkeys=False, create=False)
+            c = self.conn.execute("SELECT value FROM key_values WHERE key_id=?",
+                                  (key_id,))
+            row = c.fetchone()
+            if row:
+                return row[0]
+            raise KeyError
+
+    def get_dict(self, key: str) -> Dict[str, str]:
+        key_id = self._find_key(self.conn, key, subkeys=True, create=False)
+        c = self.conn.execute("SELECT subkey, value FROM key_subkey_values "
+                              "WHERE key_id=?", (key_id,))
+        return {row[0]: row[1] for row in c}
+
+    def set_subkey(self, key: str, subkey: str, value: str) -> None:
+        with self.conn:
+            key_id = self._find_key(self.conn, key, subkeys=True, create=True)
+            self.conn.execute("REPLACE INTO key_subkey_values VALUES (?,?,?)",
+                              (key_id, subkey, value))
+
+    def set(self, key: str, value: Union[str, Dict[str, str]]) -> None:
+        if isinstance(value, str):
+            with self.conn:
+                key_id = self._find_key(self.conn, key, subkeys=False,
+                                        create=True)
+                self.conn.execute("REPLACE INTO key_values VALUES (?,?)",
+                                  (key_id, value))
+        else:
+            with self.conn:
+                key_id = self._find_key(self.conn, key, subkeys=True,
+                                        create=True)
+                self.conn.execute(
+                    "DELETE FROM key_subkey_values WHERE key_id=?", (key_id,))
+                for subkey, subvalue in value.items():
+                    self.conn.execute(
+                        "INSERT INTO key_subkey_values VALUES (?,?,?)",
+                        (key_id, subkey, subvalue))
+
+    def _find_key(self, conn: sqlite3.Connection, key: str, subkeys: bool,
+                  create: bool) -> int:
+        c = conn.execute(
+            "SELECT key_id, type FROM keys WHERE namespace=? AND key=?",
+            (self.namespace, key))
+        row = c.fetchone()
+        if row:
+            key_id, found_type = row[0], row[1]
+            if found_type == "KV" and subkeys:
+                raise TypeError(f"Key '{key}' does not use subkeys.")
+            elif found_type == "KKV" and not subkeys:
+                raise TypeError(f"Key '{key}' uses subkeys.")
+        else:
+            if create:
+                c = conn.execute(
+                    "INSERT INTO keys (namespace, key, type) VALUES(?, ?, ?)",
+                    (self.namespace, key, "KKV" if subkeys else "KV"))
                 key_id = c.lastrowid
-            self.conn.execute("REPLACE INTO key_values VALUES (?,?)",
-                              (key_id, value))
+            else:
+                raise KeyError(key)
+        return key_id
 
     def unset(self, key: str) -> None:
         with self.conn:
             self.conn.execute("DELETE FROM keys WHERE namespace=? AND key=?",
                               (self.namespace, key))
 
-    def exists(self, key: str) -> bool:
-        c = self.conn.execute("SELECT * FROM keys WHERE namespace=? AND key=?",
-                              (self.namespace, key))
+    def exists(self, key: str, subkey: Optional[str] = None) -> bool:
+        if subkey is not None:
+            try:
+                _ = self.get(key, subkey)
+                return True
+            except TypeError:
+                raise
+            except KeyError:
+                return False
+        else:
+            c = self.conn.execute(
+                "SELECT * FROM keys WHERE namespace=? AND key=?",
+                (self.namespace, key))
         return c.fetchone() is not None
 
     def clear_all(self, key_pattern: str) -> None:
