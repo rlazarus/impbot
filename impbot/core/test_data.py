@@ -11,7 +11,7 @@ class BarHandler(command.CommandHandler):
 
 
 class DataTest(tests_util.DataHandlerTest):
-    def test(self):
+    def test_keys(self):
         foo = FooHandler()
         self.assertFalse(foo.data.exists("testing"))
         self.assertRaises(KeyError, foo.data.get, "testing")
@@ -23,13 +23,19 @@ class DataTest(tests_util.DataHandlerTest):
         foo.data.set("twosting", "another value")
         self.assertEqual(set(foo.data.list("ing")),
                          {("testing", "value"), ("twosting", "another value")})
+        foo.data.clear_all("%ing")
+        self.assertEqual(foo.data.list("ing"), [])
+
+    def test_namespaces(self):
+        foo = FooHandler()
+        foo.data.set("key", "value")
         foo2 = FooHandler()
-        self.assertTrue(foo2.data.exists("testing"))
-        self.assertEqual(foo2.data.get("testing"), "value")
+        self.assertTrue(foo2.data.exists("key"))
+        self.assertEqual(foo2.data.get("key"), "value")
         bar = BarHandler()
-        self.assertFalse(bar.data.exists("testing"))
-        self.assertRaises(KeyError, bar.data.get, "testing")
-        foo.data.unset("testing")
-        self.assertFalse(foo.data.exists("testing"))
-        self.assertRaises(KeyError, foo.data.get, "testing")
-        self.assertFalse(foo2.data.exists("testing"))
+        self.assertFalse(bar.data.exists("key"))
+        self.assertRaises(KeyError, bar.data.get, "key")
+        foo.data.unset("key")
+        self.assertFalse(foo.data.exists("key"))
+        self.assertRaises(KeyError, foo.data.get, "key")
+        self.assertFalse(foo2.data.exists("key"))
