@@ -25,7 +25,7 @@ cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
 
 class HueClient:
     def __init__(self, username: str):
-        self.data = data.Namespace("HueClient")
+        self.data = data.Namespace("impbot.handlers.hue.HueClient")
         self.username = username
 
     def startup(self) -> None:

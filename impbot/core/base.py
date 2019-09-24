@@ -132,7 +132,8 @@ class Handler(Module, abc.ABC, Generic[E]):
                 "or a subclass.")
 
     def __init__(self) -> None:
-        self.data = data.Namespace(type(self).__name__)
+        self.data = data.Namespace(
+            f"{type(self).__module__}.{type(self).__name__}")
 
     def startup(self) -> None:
         """

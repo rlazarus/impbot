@@ -19,8 +19,7 @@ logger = logging.getLogger(__name__)
 class TwitchOAuth:
     def __init__(self, streamer_username: str):
         self.streamer_username = streamer_username
-        # TODO: Migrate this over in the DB and rename the namespace.
-        self.data = data.Namespace("TwitchEventConnection")
+        self.data = data.Namespace("impbot.util.twitch_util.TwitchOAuth")
         self.lock = threading.Lock()
 
     def maybe_authorize(self) -> None:
