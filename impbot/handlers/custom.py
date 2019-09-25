@@ -15,22 +15,6 @@ def normalize(command: str) -> str:
     return command.lower()
 
 
-class Command(object):
-    def __init__(self, command: str, response: str, count: int = 0,
-                 cooldowns: Optional[
-                     cooldown.GlobalAndUserCooldowns] = None) -> None:
-        self.command = command
-        self.response = response
-        self.count = count
-        if cooldowns is None:
-            cooldowns = cooldown.GlobalAndUserCooldowns(None, None)
-        self.cooldowns = cooldowns
-
-    def __repr__(self) -> str:
-        return (f"Command({self.command!r}, {self.response!r}, "
-                f"{self.count!r}, {self.cooldowns!r})")
-
-
 class CustomCommandHandler(command.CommandHandler):
     def check(self, message: base.Message) -> bool:
         if super().check(message):
@@ -51,16 +35,20 @@ class CustomCommandHandler(command.CommandHandler):
             return super().run(message)
         # Otherwise, it's a custom command so we do our own thing.
         name = normalize(message.text.split(None, 1)[0])
-        c: Command = eval(self.data.get(name))
-        if not c.cooldowns.fire(message.user):
-            return None
-        c.count += 1
-        self.data.set(name, repr(c))
-        return c.response.replace("(count)", str(c.count))
+        comm = self.data.get_dict(name)
+        if "cooldowns" in comm:
+            cooldowns = eval(comm["cooldowns"])
+            if not cooldowns.fire(message.user):
+                return None
+            self.data.set_subkey(name, "cooldowns", repr(cooldowns))
+        count = int(comm["count"]) + 1
+        self.data.set_subkey(name, "count", str(count))
+        return comm["response"].replace("(count)", str(count))
 
     @web.url("/commands")
     def web(self) -> str:
-        commands: List[Command] = [eval(v) for k, v in self.data.list("")]
+        commands = [(key, subkeys["response"])
+                    for key, subkeys in self.data.get_all_dicts().items()]
         return flask.render_template("commands.html", commands=commands)
 
     def run_addcom(self, name: str, text: str) -> str:
@@ -69,18 +57,22 @@ class CustomCommandHandler(command.CommandHandler):
             raise base.UserError(f"!{name} already exists.")
         if hasattr(self, "run_" + name):
             raise base.UserError(f"Can't use !{name} for a command.")
-        self.data.set(name, repr(Command(name, text)))
+        self.data.set(name, {
+            "response": text,
+            "count": "0"
+        })
         return f"Added !{name}."
 
     def run_editcom(self, name: str, text: str) -> str:
         name = normalize(name)
         if self.data.exists(name):
-            c = eval(self.data.get(name))
-            c.response = text
-            self.data.set(name, repr(c))
+            self.data.set_subkey(name, "response", text)
             return f"Edited !{name}."
         else:
-            self.data.set(name, repr(Command(name, text)))
+            self.data.set(name, {
+                "response": text,
+                "count": "0"
+            })
             return f"!{name} didn't exist; added it."
 
     def run_delcom(self, name: str) -> str:
@@ -96,7 +88,5 @@ class CustomCommandHandler(command.CommandHandler):
         name = normalize(name)
         if not self.data.exists(name):
             raise base.UserError(f"!{name} doesn't exist")
-        c = eval(self.data.get(name))
-        c.count = count
-        self.data.set(name, repr(c))
+        self.data.set_subkey(name, "count", str(count))
         return f"Reset !{name} counter to {count}."

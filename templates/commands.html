@@ -12,8 +12,8 @@
 <body>
 <table>
     <tr><th>Command</th><th>Response</th></tr>
-    {% for command in commands %}
-        <tr><td>!{{command.command}}</td><td>{{command.response}}</td></tr>
+    {% for command, response in commands %}
+        <tr><td>!{{command}}</td><td>{{response}}</td></tr>
     {% endfor %}
 </table>
 </body>

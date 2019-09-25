@@ -167,7 +167,20 @@ class Namespace(object):
         with self.conn:
             self.conn.execute("DELETE FROM keys "
                               "WHERE namespace=? AND key LIKE ?",
-                              (self.namespace, key_pattern,))
+                              (self.namespace, key_pattern))
+
+    def get_all_dicts(self) -> Dict[str, Dict[str, str]]:
+        result: Dict[str, Dict[str, str]] = {}
+        c = self.conn.execute(
+            "SELECT key, subkey, value FROM keys LEFT JOIN key_subkey_values "
+            "ON keys.key_id = key_subkey_values.key_id "
+            "WHERE namespace=? AND type='KKV'", (self.namespace,))
+        for key, subkey, value in c:
+            result.setdefault(key, {})
+            if value is None:
+                continue
+            result[key][subkey] = value
+        return result
 
     # TODO: This isn't the right interface -- it was added in a hurry to support
     #  a stream in progress.

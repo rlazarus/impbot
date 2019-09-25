@@ -64,6 +64,23 @@ class DataTest(tests_util.DataHandlerTest):
         self.assertEqual(data.get("key", "e"), "easy")
         self.assertFalse(data.exists("key", "b"))
 
+    def test_empty_dict(self):
+        data = FooHandler().data
+        self.assertFalse(data.exists("key"))
+        self.assertRaises(KeyError, data.get, "key")
+        self.assertRaises(KeyError, data.get_dict, "key")
+
+        data.set("key", {})
+        self.assertTrue(data.exists("key"))
+        self.assertEqual(data.get_dict("key"), {})
+        self.assertFalse(data.exists("key", "subkey"))
+        self.assertRaises(KeyError, data.get, "key", "subkey")
+
+        data.unset("key")
+        self.assertFalse(data.exists("key"))
+        self.assertRaises(KeyError, data.get, "key")
+        self.assertRaises(KeyError, data.get_dict, "key")
+
     def test_mismatch(self):
         data = FooHandler().data
         data.set("no_subkeys", "value")
