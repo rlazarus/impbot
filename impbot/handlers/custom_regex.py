@@ -15,10 +15,8 @@ class CustomRegexHandler(RegexHandler):
 
     def startup(self) -> None:
         try:
-            for key, value in self.data.list(" pattern"):
-                id = key[:-len(" pattern")]
-                response = self.data.get(f"{id} response")
-                self.patterns[re.compile(value)] = response
+            self.patterns = {re.compile(d["pattern"]): d["response"]
+                             for d in self.data.get_all_dicts().values()}
         except sre_compile.error as e:
             raise base.AdminError(e)
 
@@ -29,5 +27,4 @@ class CustomRegexHandler(RegexHandler):
         except KeyError:
             id = 0
         self.data.set("next_id", str(id + 1))
-        self.data.set(f"{id} pattern", pattern)
-        self.data.set(f"{id} response", response)
+        self.data.set(str(id), {"pattern": pattern, "response": response})

@@ -10,11 +10,7 @@ class RegexHandler(base.Handler[base.Message]):
     def __init__(self, patterns: Mapping[str, str]) -> None:
         super().__init__()
         try:
-            # Store the patterns in an OrderedDict so that if the input was
-            # ordered, that order is preserved. If a line matches more than one
-            # pattern, the first one wins.
-            self.patterns = collections.OrderedDict(
-                (re.compile(k), v) for k, v in patterns.items())
+            self.patterns = {re.compile(k): v for k, v in patterns.items()}
         except sre_compile.error as e:
             raise base.AdminError(e)
         self._response: Optional[str] = None
