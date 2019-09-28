@@ -12,19 +12,21 @@ class BarHandler(command.CommandHandler):
 
 class DataTest(tests_util.DataHandlerTest):
     def test_keys(self):
-        foo = FooHandler()
-        self.assertFalse(foo.data.exists("testing"))
-        self.assertRaises(KeyError, foo.data.get, "testing")
-        self.assertEqual(foo.data.list("ing"), [])
-        foo.data.set("testing", "value")
-        self.assertTrue(foo.data.exists("testing"))
-        self.assertEqual(foo.data.get("testing"), "value")
-        self.assertEqual(foo.data.list("ing"), [("testing", "value")])
-        foo.data.set("twosting", "another value")
-        self.assertEqual(set(foo.data.list("ing")),
+        data = FooHandler().data
+        self.assertFalse(data.exists("testing"))
+        self.assertRaises(KeyError, data.get, "testing")
+        self.assertEqual(data.list("ing"), [])
+        data.set("testing", "value")
+        self.assertTrue(data.exists("testing"))
+        self.assertEqual(data.get("testing"), "value")
+        self.assertEqual(data.list("ing"), [("testing", "value")])
+        data.set("twosting", "another value")
+        self.assertEqual(set(data.list("ing")),
                          {("testing", "value"), ("twosting", "another value")})
-        foo.data.clear_all("%ing")
-        self.assertEqual(foo.data.list("ing"), [])
+        data.clear_all(except_keys=["testing"])
+        self.assertEqual(data.list(""), [("testing", "value")])
+        data.clear_all()
+        self.assertEqual(data.list(""), [])
 
     def test_namespaces(self):
         foo = FooHandler()

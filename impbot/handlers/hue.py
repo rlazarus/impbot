@@ -10,7 +10,6 @@ from typing import Optional
 import requests
 
 import secret
-from impbot.connections import twitch
 from impbot.connections import twitch_event
 from impbot.connections import twitch_webhook
 from impbot.core import base
@@ -19,8 +18,11 @@ from impbot.handlers import command
 from impbot.util import cooldown
 
 logger = logging.getLogger(__name__)
-
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
+
+# Keys associated with scenes don't contain underscores, so using this key
+# guarantees there isn't a conflict.
+CONFIG_KEY = '_config'
 
 
 class HueClient:
@@ -29,8 +31,8 @@ class HueClient:
         self.username = username
 
     def startup(self) -> None:
-        if not (self.data.exists("access_token") and
-                self.data.exists("refresh_token")):
+        if not (self.data.exists(CONFIG_KEY, "access_token") and
+                self.data.exists(CONFIG_KEY, "refresh_token")):
             # TODO: Add a first-time setup flow. For now, they're set manually.
             raise base.AdminError("access_token and refresh_token not in DB")
 
@@ -40,28 +42,34 @@ class HueClient:
         This property is a shortcut to shared storage only -- it doesn't enable
         or disable any of the other methods.
         """
-        return self.data.get("enabled") == "True"
+        try:
+            return self.data.get(CONFIG_KEY, "enabled") == "True"
+        except KeyError:
+            return False
 
     @enabled.setter
     def enabled(self, value: bool) -> None:
-        self.data.set("enabled", str(value))
+        self.data.set_subkey(CONFIG_KEY, "enabled", str(value))
 
     def list_scenes(self) -> str:
         self._maybe_fill_cache()
-        rows = [v for k, v in self.data.list(" name")]
-        rows.append("Rainbow")
-        rows.sort()
-        return "Scenes: " + ', '.join(rows)
+        names = [v["name"] for k, v in self.data.get_all_dicts().items()
+                 if k != CONFIG_KEY]
+        names.append("Rainbow")
+        names.sort()
+        return "Scenes: " + ", ".join(names)
 
     def random_scene(self) -> str:
-        return random.choice([k for k, v in self.data.list(" id")])[:-3]
+        ids = [v["id"] for k,v in self.data.get_all_dicts().items()
+               if k != CONFIG_KEY]
+        return random.choice(ids)
 
     def set_scene(self, scene: str) -> Optional[str]:
-        if not self.data.exists(f"{scene} id"):
+        if not self.data.exists(scene):
             self._maybe_fill_cache(force=True)
-        if not self.data.exists(f"{scene} id"):
+        if not self.data.exists(scene):
             return self.list_scenes()
-        scene_id = self.data.get(f"{scene} id")
+        scene_id = self.data.get(scene, "id")
         self._action(scene=scene_id)
         return None
 
@@ -82,7 +90,8 @@ class HueClient:
             raise HueError
 
     def _maybe_fill_cache(self, force: bool = False) -> None:
-        if not (cache_cd.fire() or force or not self.data.list(" id")):
+        any_scenes = any(key != CONFIG_KEY for key in self.data.get_all_dicts())
+        if not (cache_cd.fire() or force or not any_scenes):
             return
 
         response = requests.get(
@@ -94,29 +103,30 @@ class HueClient:
             raise HueError
 
         scenes = response.json()
-        self.data.clear_all("% name")
-        self.data.clear_all("% id")
+        self.data.clear_all(except_keys=[CONFIG_KEY])
         for id, fields in scenes.items():
             full_name = fields["name"]
             if not full_name.lower().startswith("bot "):
                 continue
             full_name = full_name[4:]
             canon_name = _canonicalize(full_name)
-            self.data.set(f"{canon_name} name", full_name)
-            self.data.set(f"{canon_name} id", id)
+            self.data.set(canon_name, {"name": full_name, "id": id})
 
     def _access_token(self) -> str:
         # First, refresh if necessary.
         try:
-            expiration_timestamp = float(self.data.get("access_token_expires"))
+            expiration_timestamp = float(
+                self.data.get(CONFIG_KEY, "access_token_expires"))
         except KeyError:
-            expiration_timestamp = 0
-        expiration = datetime.datetime.fromtimestamp(
-            expiration_timestamp, datetime.timezone.utc)
-        if expiration <= datetime.datetime.now(datetime.timezone.utc):
+            expired = True
+        else:
+            expiration = datetime.datetime.fromtimestamp(
+                expiration_timestamp, datetime.timezone.utc)
+            expired = expiration <= datetime.datetime.now(datetime.timezone.utc)
+        if expired:
             self._oauth_refresh()
 
-        return self.data.get("access_token")
+        return self.data.get(CONFIG_KEY, "access_token")
 
     def _oauth_refresh(self) -> None:
         path = "/oauth2/refresh"
@@ -145,15 +155,17 @@ class HueClient:
             f"https://api.meethue.com{path}",
             headers=headers,
             params={"grant_type": "refresh_token"},
-            data={"refresh_token": self.data.get("refresh_token")})
+            data={"refresh_token": self.data.get(CONFIG_KEY, "refresh_token")})
         _log(response)
         tokens = response.json()
-        self.data.set("access_token", tokens["access_token"])
-        self.data.set("refresh_token", tokens["refresh_token"])
+        self.data.set_subkey(CONFIG_KEY, "access_token", tokens["access_token"])
+        self.data.set_subkey(CONFIG_KEY, "refresh_token",
+                             tokens["refresh_token"])
         ttl = datetime.timedelta(
             seconds=float(tokens["access_token_expires_in"]))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
-        self.data.set("access_token_expires", str(expiration.timestamp()))
+        self.data.set_subkey(CONFIG_KEY, "access_token_expires",
+                             str(expiration.timestamp()))
 
 
 class HueHandler(command.CommandHandler):
@@ -196,7 +208,7 @@ class HueHandler(command.CommandHandler):
             # It's an error message.
             return response
         if roulette:
-            name = self.data.get(f"{scene} name")
+            name = self.data.get("scene", "name")
             return f"How about... {name}! PogChamp"
         # Otherwise, no need to say anything.
         return None

@@ -163,11 +163,16 @@ class Namespace(object):
                 (self.namespace, key))
         return c.fetchone() is not None
 
-    def clear_all(self, key_pattern: str) -> None:
+    def clear_all(self, except_keys: Optional[List[str]] = None) -> None:
         with self.conn:
-            self.conn.execute("DELETE FROM keys "
-                              "WHERE namespace=? AND key LIKE ?",
-                              (self.namespace, key_pattern))
+            if except_keys:
+                qmarks = ",".join("?" for _ in except_keys)
+                self.conn.execute("DELETE FROM keys WHERE namespace=? "
+                                  f"AND key NOT IN ({qmarks})",
+                                  (self.namespace,) + tuple(except_keys))
+            else:
+                self.conn.execute("DELETE FROM keys WHERE namespace=?",
+                                  (self.namespace,))
 
     def get_all_dicts(self) -> Dict[str, Dict[str, str]]:
         result: Dict[str, Dict[str, str]] = {}
