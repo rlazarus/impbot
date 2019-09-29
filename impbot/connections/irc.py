@@ -1,16 +1,14 @@
+import datetime
 import logging
-import sys
 import threading
 import time
 from typing import Optional, List
 
 from irc import client
 
-from impbot.core import bot
 from impbot.core import base
-from impbot.handlers import custom
-from impbot.handlers import hello
-from impbot.handlers import roulette
+
+PING_TIMEOUT = datetime.timedelta(minutes=5, seconds=30)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,7 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
         self.capabilities = capabilities if capabilities is not None else []
         self.shutdown_event = threading.Event()
         self.expect_disconnection = threading.Event()
+        self.last_ping = datetime.datetime.now()
         self.on_event: Optional[base.EventCallback] = None
 
     # bot.Connection overrides:
@@ -41,9 +40,15 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
             logger.info("Connecting...")
             self.connect(self.host, self.port, self.nickname, self.password)
             # SimpleIRCClient.start() never returns even after disconnection, so
-            # instead of calling into it, we run this loop ourselves.
+            # instead of calling into it, we run this loop ourselves. That also
+            # lets us time out when we haven't gotten a ping.
             while self.connection.connected:
                 self.reactor.process_once(0.2)
+                if datetime.datetime.now() - self.last_ping > PING_TIMEOUT:
+                    logger.info(
+                        f"{datetime.datetime.now() - self.last_ping} since "
+                        "last ping; reconnecting.")
+                    self.disconnect()
             logger.info("Disconnected.")
             if not self.expect_disconnection.is_set():
                 time.sleep(3)  # It's, uh, exponential backoff with a base of 1.
@@ -75,3 +80,7 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
 
     def _user(self, event: client.Event) -> base.User:
         return base.User(event.source.nick)
+
+    def on_ping(self, _conn: client.ServerConnection,
+                _event: client.Event) -> None:
+        self.last_ping = datetime.datetime.now()

@@ -56,6 +56,7 @@ class TwitchChatConnection(irc.IrcConnection):
         # Superclass automatically reconnects, since shutdown() wasn't called.
         self.disconnect()
 
+
 @attr.s(frozen=True)
 class TwitchUser(base.User):
     display_name: Optional[str] = attr.ib(cmp=False, default=None)
