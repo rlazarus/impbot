@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional, Dict, Union
 
 logger = logging.getLogger(__name__)
 _db: Optional[str] = None
+SCHEMA_VERSION = 2
 
 
 def startup(db: str) -> None:

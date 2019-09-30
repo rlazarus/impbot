@@ -59,6 +59,13 @@ class Bot:
 
         if db is not None:
             data.startup(db)
+            bot_data = data.Namespace("impbot.core.bot.Bot")
+            db_version = int(bot_data.get("schema_version"))
+            if db_version != data.SCHEMA_VERSION:
+                logger.critical(
+                    f"Impbot is at schema version {data.SCHEMA_VERSION}, "
+                    f"database is at {db_version}")
+                sys.exit(1)
 
         self.handlers: List[base.Handler[Any]] = [lambda_event.LambdaHandler()]
         self.handlers.extend(handlers)
