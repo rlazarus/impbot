@@ -175,6 +175,13 @@ class Namespace(object):
                 self.conn.execute("DELETE FROM keys WHERE namespace=?",
                                   (self.namespace,))
 
+    def get_all_values(self) -> Dict[str, str]:
+        c = self.conn.execute(
+            "SELECT key, value FROM keys INNER JOIN key_values "
+            "ON keys.key_id = key_values.key_id WHERE namespace=?",
+            (self.namespace,))
+        return {key: value for key, value in c}
+
     def get_all_dicts(self) -> Dict[str, Dict[str, str]]:
         result: Dict[str, Dict[str, str]] = {}
         c = self.conn.execute(
@@ -187,15 +194,3 @@ class Namespace(object):
                 continue
             result[key][subkey] = value
         return result
-
-    # TODO: This isn't the right interface -- it was added in a hurry to support
-    #  a stream in progress.
-    def list(self, key_endswith: str) -> List[Tuple[str, str]]:
-        c = self.conn.execute(
-            "SELECT key, value FROM "
-            "keys INNER JOIN key_values ON keys.rowid = key_values.key_id "
-            "WHERE namespace=?",
-            (self.namespace,))
-        rows = c.fetchall()
-        return [(row[0], row[1]) for row in rows
-                if row[0].endswith(key_endswith)]

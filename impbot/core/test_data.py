@@ -15,18 +15,18 @@ class DataTest(tests_util.DataHandlerTest):
         data = FooHandler().data
         self.assertFalse(data.exists("testing"))
         self.assertRaises(KeyError, data.get, "testing")
-        self.assertEqual(data.list("ing"), [])
+        self.assertEqual(data.get_all_values(), {})
         data.set("testing", "value")
         self.assertTrue(data.exists("testing"))
         self.assertEqual(data.get("testing"), "value")
-        self.assertEqual(data.list("ing"), [("testing", "value")])
+        self.assertEqual(data.get_all_values(), {"testing": "value"})
         data.set("twosting", "another value")
-        self.assertEqual(set(data.list("ing")),
-                         {("testing", "value"), ("twosting", "another value")})
+        self.assertEqual(data.get_all_values(),
+                         {"testing": "value", "twosting": "another value"})
         data.clear_all(except_keys=["testing"])
-        self.assertEqual(data.list(""), [("testing", "value")])
+        self.assertEqual(data.get_all_values(), {"testing": "value"})
         data.clear_all()
-        self.assertEqual(data.list(""), [])
+        self.assertEqual(data.get_all_values(), {})
 
     def test_namespaces(self):
         foo = FooHandler()
@@ -46,7 +46,7 @@ class DataTest(tests_util.DataHandlerTest):
         data = FooHandler().data
         self.assertFalse(data.exists("key"))
         self.assertRaises(KeyError, data.get, "key")
-        self.assertEqual(data.list("key"), [])
+        self.assertEqual(data.get_all_values(), {})
         data.set_subkey("key", "a", "alpha")
         data.set_subkey("key", "b", "bravo")
         data.set_subkey("key", "c", "charlie")
