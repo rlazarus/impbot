@@ -42,10 +42,7 @@ class HueClient:
         This property is a shortcut to shared storage only -- it doesn't enable
         or disable any of the other methods.
         """
-        try:
-            return self.data.get(CONFIG_KEY, "enabled") == "True"
-        except KeyError:
-            return False
+        return self.data.get(CONFIG_KEY, "enabled", default="False") == "True"
 
     @enabled.setter
     def enabled(self, value: bool) -> None:

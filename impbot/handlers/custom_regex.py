@@ -22,9 +22,6 @@ class CustomRegexHandler(RegexHandler):
 
     def add_pattern(self, pattern: str, response: str) -> None:
         # TODO: Expose this (and edit, delete) in the web UI.
-        try:
-            id = int(self.data.get("next_id"))
-        except KeyError:
-            id = 0
+        id = int(self.data.get("next_id", default="0"))
         self.data.set("next_id", str(id + 1))
         self.data.set(str(id), {"pattern": pattern, "response": response})

@@ -15,6 +15,7 @@ class DataTest(tests_util.DataHandlerTest):
         data = FooHandler().data
         self.assertFalse(data.exists("testing"))
         self.assertRaises(KeyError, data.get, "testing")
+        self.assertEqual("default", data.get("testing", default="default"))
         self.assertEqual(data.get_all_values(), {})
         data.set("testing", "value")
         self.assertTrue(data.exists("testing"))
@@ -46,6 +47,8 @@ class DataTest(tests_util.DataHandlerTest):
         data = FooHandler().data
         self.assertFalse(data.exists("key"))
         self.assertRaises(KeyError, data.get, "key")
+        self.assertRaises(KeyError, data.get, "key", "a")
+        self.assertEqual("default", data.get("key", "a", default="default"))
         self.assertEqual(data.get_all_values(), {})
         data.set_subkey("key", "a", "alpha")
         data.set_subkey("key", "b", "bravo")
@@ -56,6 +59,7 @@ class DataTest(tests_util.DataHandlerTest):
         self.assertTrue(data.exists("key"))
         self.assertTrue(data.exists("key", "a"))
         self.assertFalse(data.exists("key", "d"))
+        self.assertEqual("default", data.get("key", "d", default="default"))
         data.set_subkey("key", "b", "baker")
         self.assertEqual(data.get("key", "b"), "baker")
         self.assertEqual(data.get_dict("key"),

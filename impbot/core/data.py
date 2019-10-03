@@ -73,24 +73,30 @@ class Namespace(object):
             self._conn.execute("PRAGMA FOREIGN_KEYS = on")
         return self._conn
 
-    def get(self, key: str, subkey: Optional[str] = None) -> str:
-        if subkey is not None:
-            key_id = self._find_key(self.conn, key, subkeys=True, create=False)
-            c = self.conn.execute("SELECT value FROM key_subkey_values "
-                                  "WHERE key_id=? AND subkey=?",
-                                  (key_id, subkey))
+    def get(self, key: str, subkey: Optional[str] = None,
+            default: Optional[str] = None) -> str:
+        try:
+            if subkey is not None:
+                key_id = self._find_key(self.conn, key, subkeys=True,
+                                        create=False)
+                c = self.conn.execute("SELECT value FROM key_subkey_values "
+                                      "WHERE key_id=? AND subkey=?",
+                                      (key_id, subkey))
+            else:
+                key_id = self._find_key(self.conn, key, subkeys=False,
+                                        create=False)
+                c = self.conn.execute("SELECT value FROM key_values "
+                                      "WHERE key_id=?", (key_id,))
             row = c.fetchone()
             if row:
                 return row[0]
             raise KeyError
-        else:
-            key_id = self._find_key(self.conn, key, subkeys=False, create=False)
-            c = self.conn.execute("SELECT value FROM key_values WHERE key_id=?",
-                                  (key_id,))
-            row = c.fetchone()
-            if row:
-                return row[0]
-            raise KeyError
+        except KeyError:
+            # The whole thing is wrapped in a try-except because _find_key() can
+            # also raise KeyError, if the key doesn't exist at all.
+            if default is not None:
+                return default
+            raise
 
     def get_dict(self, key: str) -> Dict[str, str]:
         key_id = self._find_key(self.conn, key, subkeys=True, create=False)
