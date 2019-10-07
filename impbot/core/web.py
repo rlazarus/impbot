@@ -1,6 +1,8 @@
 import functools
 import logging
 import queue
+import sys
+from os import path
 from typing import Sequence, Optional, Union, Dict, Any, Type, cast, Tuple, \
     Callable
 
@@ -17,7 +19,8 @@ logger = logging.getLogger(__name__)
 class WebServerConnection(base.Connection):
     def __init__(self, host: str, port: int) -> None:
         self.on_event: Optional[base.EventCallback] = None
-        self.flask = flask.Flask(__name__)
+        templates = path.join(sys.path[0], "templates")
+        self.flask = flask.Flask(__name__, template_folder=templates)
         self.flask.config["SERVER_NAME"] = f"{host}:{port}"
         self.flask_server = serving.make_server(host, port, self.flask)
 
