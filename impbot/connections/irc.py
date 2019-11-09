@@ -13,7 +13,7 @@ PING_TIMEOUT = datetime.timedelta(minutes=5, seconds=30)
 logger = logging.getLogger(__name__)
 
 
-class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
+class IrcConnection(base.ChatConnection):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
                  password: Optional[str] = None,
                  capabilities: Optional[List[str]] = None) -> None:
@@ -28,6 +28,10 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
         self.expect_disconnection = threading.Event()
         self.last_ping = datetime.datetime.now()
         self.on_event: Optional[base.EventCallback] = None
+        self.reactor = client.Reactor()
+        self.reactor.add_global_handler("welcome", self.on_welcome)
+        self.reactor.add_global_handler("pubmsg", self.on_pubmsg)
+        self.reactor.add_global_handler("ping", self.on_ping)
 
     # bot.Connection overrides:
 
@@ -38,10 +42,14 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
         self.on_event = on_event
         while not self.shutdown_event.is_set():
             logger.info("Connecting...")
-            self.connect(self.host, self.port, self.nickname, self.password)
-            # SimpleIRCClient.start() never returns even after disconnection, so
-            # instead of calling into it, we run this loop ourselves. That also
-            # lets us time out when we haven't gotten a ping.
+            self.last_ping = datetime.datetime.now()
+            self.connection = self.reactor.server().connect(
+                self.host, self.port, self.nickname, self.password)
+
+            # We run this loop ourselves, instead of calling
+            # reactor.process_forever(), so that we can time out when we
+            # haven't gotten a ping.
+            # TODO: See if scheduler.execute_every() would work instead.
             while self.connection.connected:
                 self.reactor.process_once(0.2)
                 if datetime.datetime.now() - self.last_ping > PING_TIMEOUT:
@@ -60,9 +68,10 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
 
     def disconnect(self) -> None:
         self.expect_disconnection.set()
-        self.connection.close()
+        if self.connection.connected:
+            self.connection.close()
 
-    # client.SimpleIRCClient overrides:
+    # IRC handlers:
 
     def on_welcome(self, connection: client.ServerConnection,
                    _: client.Event) -> None:
@@ -76,11 +85,11 @@ class IrcConnection(base.ChatConnection, client.SimpleIRCClient):
         user = self._user(event)
         self.on_event(base.Message(self, user, event.arguments[0]))
 
+    def on_ping(self, _conn: client.ServerConnection,
+                _event: client.Event) -> None:
+        self.last_ping = datetime.datetime.now()
+
     # Hook for subclasses to override:
 
     def _user(self, event: client.Event) -> base.User:
         return base.User(event.source.nick)
-
-    def on_ping(self, _conn: client.ServerConnection,
-                _event: client.Event) -> None:
-        self.last_ping = datetime.datetime.now()
