@@ -205,7 +205,7 @@ class HueHandler(command.CommandHandler):
             # It's an error message.
             return response
         if roulette:
-            name = self.data.get("scene", "name")
+            name = self.data.get(scene, "name")
             return f"How about... {name}! PogChamp"
         # Otherwise, no need to say anything.
         return None
