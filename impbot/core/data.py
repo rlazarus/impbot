@@ -24,7 +24,7 @@ def startup(db: str) -> None:
                 logger.warning("Database doesn't exist -- creating a new one. "
                                "Welcome! :)")
 
-            conn.executescript("""
+            conn.executescript(f"""
                 CREATE TABLE keys (key_id    INTEGER PRIMARY KEY,
                                    namespace TEXT,
                                    key       TEXT,
@@ -45,6 +45,10 @@ def startup(db: str) -> None:
                                                 value  TEXT);
                 CREATE UNIQUE INDEX idx_kkv_keyid_subkey
                     ON key_subkey_values (key_id, subkey);
+
+                INSERT INTO keys (namespace, key, type)
+                    VALUES ('impbot.core.bot.Bot', 'schema_version', 'KV');
+                INSERT INTO key_values VALUES (1, '{SCHEMA_VERSION}');
             """)
     conn.close()
 
