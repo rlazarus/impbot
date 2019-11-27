@@ -31,7 +31,10 @@ class TwitchUser(base.User):
 
 @attr.s(auto_attribs=True)
 class TwitchMessage(base.Message):
+    # A unique identifier for each line of chat.
     id: str
+    # Twitch's msg-id tag for NOTICE. (https://dev.twitch.tv/docs/irc/msg-id)
+    msg_id: Optional[str]
 
 
 class TwitchChatConnection(irc.IrcConnection):
@@ -57,7 +60,8 @@ class TwitchChatConnection(irc.IrcConnection):
         admin = "broadcaster" in badges or event.source.nick in self.admins
         moderator = "broadcaster" in badges or "moderator" in badges
         user = TwitchUser(event.source.nick, admin, display_name, moderator)
-        return TwitchMessage(self, user, event.arguments[0], tags.get("id", ""))
+        return TwitchMessage(self, user, event.arguments[0], tags.get("id", ""),
+                             tags.get("msg-id"))
 
     def say(self, text: str) -> None:
         # Twitch commands are sent as PRIVMSGs that start with "/" or "." We
