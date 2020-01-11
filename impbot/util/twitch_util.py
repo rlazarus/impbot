@@ -41,9 +41,10 @@ class TwitchOAuth:
         #   other installations need to register with Twitch and get their own
         #   client secret.
         scopes = [
-            "bits:read",              # For TwitchEventConnection
-            "channel_subscriptions",  # For TwitchEventConnection
-            "channel_editor",         # For TwitchEditorHandler
+            "bits:read",                 # For TwitchEventConnection
+            "channel_subscriptions",     # For TwitchEventConnection
+            "channel_editor",            # For TwitchEditorHandler
+            "channel:read:redemptions",  # For TwitchEventConnection
         ]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,

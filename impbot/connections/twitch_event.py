@@ -8,10 +8,12 @@ from typing import Optional, Dict, Any
 import attr
 import websockets
 
+from impbot.connections import twitch
 from impbot.core import base
 from impbot.util import twitch_util
 
 logger = logging.getLogger(__name__)
+
 
 @attr.s(auto_attribs=True)
 class TwitchEvent(base.Event):
@@ -39,9 +41,20 @@ class GiftSubscription(Subscription):
     recipient_username: str
 
 
+@attr.s(auto_attribs=True)
+class PointsReward(TwitchEvent):
+    reward_title: str
+    reward_prompt: str
+    cost: int
+    user_input: Optional[str]  # None if the reward doesn't include any.
+    status: str  # "FULFILLED" or "UNFULFILLED"
+
+
 class TwitchEventConnection(base.Connection):
-    def __init__(self, streamer_username: str) -> None:
+    def __init__(self, streamer_username: str,
+                 reply_conn: Optional[base.ChatConnection] = None) -> None:
         self.streamer_username = streamer_username
+        self.reply_conn = reply_conn
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
         self.oauth = twitch_util.TwitchOAuth(streamer_username)
@@ -78,14 +91,14 @@ class TwitchEventConnection(base.Connection):
                         if body["type"] == "RECONNECT":
                             logger.info("Reconnecting by request...")
                             break
-                        handle_message(on_event, body)
+                        self.handle_message(on_event, body)
                 except websockets.ConnectionClosed:
                     pass
 
                 ping_task.cancel()
 
     async def subscribe(self, websocket: websockets.WebSocketClientProtocol) \
-            -> Dict[str, str]:
+        -> Dict[str, str]:
         channel_id = twitch_util.get_channel_id(self.streamer_username)
         nonce = twitch_util.nonce()
 
@@ -96,6 +109,7 @@ class TwitchEventConnection(base.Connection):
                 "topics": [
                     f"channel-bits-events-v2.{channel_id}",
                     f"channel-subscribe-events-v1.{channel_id}",
+                    f"channel-points-channel-v1.{channel_id}",
                 ],
                 "auth_token": self.oauth.access_token,
             }
@@ -121,29 +135,45 @@ class TwitchEventConnection(base.Connection):
             asyncio.run_coroutine_threadsafe(self.websocket.close(),
                                              self.event_loop)
 
-
-def handle_message(on_event: base.EventCallback, body: Dict[str, Any]):
-    if body["type"] == "PONG":
-        return
-    if body["type"] != "MESSAGE":
-        raise base.ServerError(body)
-    topic = body["data"]["topic"]
-    msg = json.loads(body["data"]["message"])
-    if "-bits-" in topic:
-        mdata = msg["data"]
-        user = base.User(mdata["user_name"]) if "user_name" in mdata else None
-        on_event(Bits(None, user, mdata["bits_used"], mdata["chat_message"]))
-    elif "-subscribe-" in topic:
-        if "recipient_user_name" in msg:
-            user = base.User(msg["user_name"]) if "user_name" in msg else None
-            on_event(GiftSubscription(
-                None, user, SUB_PLANS[msg["sub_plan"]], msg["months"], None,
-                msg["sub_message"]["message"], msg["recipient_user_name"]))
-        else:
-            on_event(Subscription(
-                None, base.User(msg["user_name"]), SUB_PLANS[msg["sub_plan"]],
-                msg["cumulative_months"], msg.get("streak_months", None),
-                msg["sub_message"]["message"]))
+    def handle_message(self, on_event: base.EventCallback,
+                       body: Dict[str, Any]) -> None:
+        if body["type"] == "PONG":
+            return
+        if body["type"] != "MESSAGE":
+            raise base.ServerError(body)
+        topic = body["data"]["topic"]
+        msg = json.loads(body["data"]["message"])
+        if "-bits-" in topic:
+            mdata = msg["data"]
+            user = (
+                base.User(mdata["user_name"]) if "user_name" in mdata else None)
+            on_event(
+                Bits(self.reply_conn, user, mdata["bits_used"],
+                     mdata["chat_message"]))
+        elif "-subscribe-" in topic:
+            if "recipient_user_name" in msg:
+                user = (
+                    base.User(msg["user_name"]) if "user_name" in msg else None)
+                on_event(GiftSubscription(
+                    self.reply_conn, user, SUB_PLANS[msg["sub_plan"]],
+                    msg["months"], None, msg["sub_message"]["message"],
+                    msg["recipient_user_name"]))
+            else:
+                on_event(Subscription(
+                    self.reply_conn, base.User(msg["user_name"]),
+                    SUB_PLANS[msg["sub_plan"]], msg["cumulative_months"],
+                    msg.get("streak_months", None),
+                    msg["sub_message"]["message"]))
+        elif "-points-channel-" in topic:
+            redemption = msg["data"]["redemption"]
+            user = twitch.TwitchUser(
+                redemption["user"]["login"], None,
+                redemption["user"]["display_name"], None, None)
+            reward = redemption["reward"]
+            on_event(PointsReward(
+                self.reply_conn, user, reward["title"], reward["prompt"],
+                reward["cost"], redemption.get("user_input"),
+                redemption["status"]))
 
 
 async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
