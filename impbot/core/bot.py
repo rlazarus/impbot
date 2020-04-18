@@ -45,8 +45,10 @@ class Shutdown(base.Event):
 class Bot:
     def __init__(self, db: Optional[str],
                  connections: Sequence[base.Connection],
+                 observers: Sequence[base.Observer[Any]],
                  handlers: Sequence[base.Handler[Any]]) -> None:
         self.connections = connections
+        self.observers = observers
 
         # Check for duplicate commands.
         commands: Dict[str, base.Handler[Any]] = {}
@@ -101,6 +103,9 @@ class Bot:
         data.shutdown()
 
     def handle(self, event: base.Event) -> None:
+        for observer in self.observers:
+            if observer.typecheck(event):
+                observer.observe(event)
         for handler in self.handlers:
             if not handler.typecheck(event):
                 continue

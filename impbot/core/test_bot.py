@@ -43,7 +43,7 @@ class BotTest(unittest.TestCase):
     def init(self, handlers):
         self.conn: base.ChatConnection = mock.Mock(spec=base.ChatConnection)
         self.reply = cast(mock.Mock, self.conn.say)
-        return bot.Bot(None, [self.conn], handlers)
+        return bot.Bot(None, [self.conn], [], handlers)
 
     def testInit(self):
         self.init([AnotherFooHandler()])
@@ -63,14 +63,15 @@ class BotTest(unittest.TestCase):
 
     def testQuit(self):
         handler = mock.Mock(spec=base.Handler)
-        b = bot.Bot(None, [OneEventConnection(bot.Shutdown())], [handler])
+        b = bot.Bot(None, [OneEventConnection(bot.Shutdown())], [], [handler])
         b.main()
         handler.check.assert_not_called()
 
     def testMultipleConnections(self):
         handler = mock.Mock(spec=base.Handler)
         events = ["one", "two", bot.Shutdown()]
-        b = bot.Bot(None, [OneEventConnection(e) for e in events], [handler])
+        b = bot.Bot(None, [OneEventConnection(e) for e in events], [],
+                    [handler])
         b.main()
         texts = [message.text for ((message,), _) in
                  handler.check.call_args_list]

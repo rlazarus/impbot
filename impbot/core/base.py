@@ -1,7 +1,7 @@
 import abc
 import inspect
 from typing import (Optional, Callable, ClassVar, List, Generic, TypeVar,
-                    TYPE_CHECKING, Type)
+                    TYPE_CHECKING, Type, Any)
 
 import attr
 
@@ -120,9 +120,49 @@ class ChatConnection(Connection, abc.ABC):
 E = TypeVar("E", bound=Event, contravariant=True)
 
 
-class Handler(Module, abc.ABC, Generic[E]):
+class EventGeneric(Generic[E]):
+    def __init_subclass__(cls, generic_method: str, **kwargs):
+        super().__init_subclass__(**kwargs)  # type: ignore
+        # EventGeneric is generic in E, but all of the subclasses that actually
+        # get initialized have concrete type arguments, so all the instances of
+        # each class have the same value of E. But, critically, there's no way
+        # to tell mypy that. So, morally, this is Callable[[Any, E], Any].
+        cls._generic_method: Callable = getattr(cls, generic_method)
+
     @classmethod
-    def __init_subclass__(cls) -> None:
+    def _event_type(cls) -> Type[E]:
+        # Because generics are subject to type erasure, we can't just look at
+        # the type parameter; that is, at runtime we can't see that it was
+        # defined as Handler[Message], so we can't use that to conclude that
+        # Message subtypes are okay. Instead we inspect the type annotation of
+        # the argument of a generic *method*, which should be the same type.
+        params = inspect.signature(cls._generic_method).parameters
+        [_, event_param] = params.values()
+        return event_param.annotation
+
+    @classmethod
+    def typecheck(cls, event: Event) -> bool:
+        """
+        Returns True if this class's generic methods can accept events of the
+        given event's type.
+
+        The default implementation uses the type annotations provided by the
+        subclass; subclasses shouldn't need to override it.
+        """
+        return types.is_instance(event, cls._event_type())
+
+
+class Handler(Module, abc.ABC, EventGeneric[E], generic_method="check"):
+    def __init_subclass__(cls, **kwargs) -> None:
+        # generic_method is passed as a kwarg to the class declaration above,
+        # but it's also passed explicitly in the super call here. The first is
+        # for Handler itself, and the second is for subclasses of Handler (so
+        # that they don't all have to specify it), so we need both. That's also
+        # why generic_method is a string rather than a callable -- we could pass
+        # generic_method=self.check here, but we couldn't do it above. Same is
+        # true in Observer.
+        super().__init_subclass__(generic_method="check",
+                                  **kwargs)  # type: ignore
         if cls._event_type() == inspect.Parameter.empty:
             raise TypeError(
                 "Type annotation for check() and run() parameter is required.")
@@ -152,22 +192,18 @@ class Handler(Module, abc.ABC, Generic[E]):
     def run(self, event: E) -> Optional[str]:
         pass
 
-    def typecheck(self, event: Event):
-        """
-        Returns True if this Handler can accept events of this event's type.
 
-        The default implementation uses the type annotations provided by the
-        subclass; subclasses shouldn't need to override it.
-        """
-        return types.is_instance(event, self._event_type())
+class Observer(Module, abc.ABC, EventGeneric[E], generic_method="observe"):
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(generic_method="observe", **kwargs)
+        if cls._event_type() == inspect.Parameter.empty:
+            raise TypeError(
+                "Type annotation for observe() parameter is required.")
+        if not issubclass(cls._event_type(), Event):
+            raise TypeError(
+                "Type annotation for observe() parameter must be Event or a "
+                "subclass.")
 
-    @classmethod
-    def _event_type(cls) -> Type[E]:
-        # Because generics are subject to type erasure, we can't just look at
-        # the type parameter; that is, at runtime we can't see that it was
-        # defined as Handler[Message], so we can't use that to conclude that
-        # Message subtypes are okay. Instead we inspect the type annotation of
-        # the check method's argument, which should be the same type.
-        params = inspect.signature(cls.check).parameters
-        [_, event_param] = params.values()
-        return event_param.annotation
+    @abc.abstractmethod
+    def observe(self, event: E) -> None:
+        pass

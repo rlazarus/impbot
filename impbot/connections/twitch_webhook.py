@@ -196,7 +196,7 @@ if __name__ == "__main__":
     handlers = [
         hello.HelloHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", connections, handlers)
+    b = bot.Bot("impbot.sqlite", connections, [], handlers)
     b.main()
 
 
