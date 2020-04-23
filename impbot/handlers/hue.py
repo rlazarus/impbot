@@ -240,15 +240,20 @@ class TwitchEnableDisableHandler(
 
     def run(self, event: twitch_webhook.TwitchWebhookEvent) -> Optional[str]:
         if isinstance(event, twitch_webhook.StreamStartedEvent):
+            if self.hue_client.enabled:
+                return None
             self.hue_client.enabled = True
             return "PogChamp PogChamp"
 
         if isinstance(event, twitch_webhook.StreamEndedEvent):
+            if not self.hue_client.enabled:
+                return None
             self.hue_client.enabled = False
             return "\U0001f44b \U0001f44b"  # Waving Hand emoji
 
         if isinstance(event, twitch_webhook.NewFollowerEvent):
-            self.hue_client.blink()
+            if self.hue_client.enabled:
+                self.hue_client.blink()
             return None
 
         # Ignore StreamChangedEvents.
