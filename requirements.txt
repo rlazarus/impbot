@@ -4,5 +4,7 @@ freezegun==0.3.11
 irc==17.0
 mock==2.0.0
 mypy-extensions==0.4.1
+obs-websocket-py==0.5.1
+pytz==2019.3
 requests==2.20.0
 websockets==7.0
