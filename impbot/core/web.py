@@ -17,12 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 class WebServerConnection(base.Connection):
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, bind_host: str, bind_port: int, url_host: str) -> None:
+        """
+        `bind_host` and `bind_port` are the address to actually bind a network
+        socket to, while `url_host` is the user-facing host used in URLs.
+
+        For example, if running behind a local proxy, bind_host might be
+        127.0.0.1 and bind_port might be a high-numbered port, whereas url_host
+        would be the user-facing domain name (and implicit port 80/443, served
+        by the proxy).
+        """
         self.on_event: Optional[base.EventCallback] = None
         templates = path.join(sys.path[0], "templates")
         self.flask = flask.Flask(__name__, template_folder=templates)
-        self.flask.config["SERVER_NAME"] = f"{host}:{port}"
-        self.flask_server = serving.make_server(host, port, self.flask)
+        self.flask.config["SERVER_NAME"] = f"{url_host}"
+        self.flask_server = serving.make_server(bind_host, bind_port,
+                                                self.flask)
 
     def init_routes(self, connections: Sequence[base.Connection],
                     handlers: Sequence[base.Handler[Any]]) -> None:

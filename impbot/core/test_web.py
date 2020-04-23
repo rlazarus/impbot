@@ -7,7 +7,7 @@ from impbot.core import web
 
 class WebTest(unittest.TestCase):
     def setUp(self):
-        self.conn = web.WebServerConnection("127.0.0.1", 9999)
+        self.conn = web.WebServerConnection("127.0.0.1", 9999, "127.0.0.1:9999")
 
     def tearDown(self):
         self.conn.flask_server.server_close()
