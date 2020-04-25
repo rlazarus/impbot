@@ -1,7 +1,13 @@
+from unittest import mock
+
 from impbot.handlers import custom
 from impbot.util import tests_util
 
 
+# Mock out the cooldowns so that we can test commands repeatedly without having
+# to mock out the clock.
+@mock.patch("impbot.util.cooldown.Cooldown.peek", return_value=True)
+@mock.patch("impbot.util.cooldown.Cooldown.fire", return_value=True)
 class CustomCommandHandlerTest(tests_util.DataHandlerTest):
 
     def setUp(self):
@@ -9,11 +15,11 @@ class CustomCommandHandlerTest(tests_util.DataHandlerTest):
         self.handler = custom.CustomCommandHandler()
         self.mod = tests_util.Moderator("mod")
 
-    def testOnlyModsCanAdd(self):
+    def testOnlyModsCanAdd(self, mock_peek, mock_fire):
         self.assert_error("!addcom !blame It's always Ms. Boogie's fault.",
                           "You can't do that.")
 
-    def testPlain(self):
+    def testPlain(self, mock_peek, mock_fire):
         self.assert_no_trigger("!blame")
         self.assert_response("!addcom !blame It's always Ms. Boogie's fault.",
                              "Added !blame.", self.mod)
@@ -29,7 +35,7 @@ class CustomCommandHandlerTest(tests_util.DataHandlerTest):
         self.assert_response("!delcom blame", "Deleted !blame.", self.mod)
         self.assert_no_trigger("!blame")
 
-    def testWithCount(self):
+    def testWithCount(self, mock_peek, mock_fire):
         self.assert_no_trigger("!sheep")
         self.assert_response("!addcom !sheep (count) sheep jumped the fence.",
                              "Added !sheep.", self.mod)

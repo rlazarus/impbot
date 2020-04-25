@@ -59,7 +59,9 @@ class CustomCommandHandler(command.CommandHandler):
             raise base.UserError(f"Can't use !{name} for a command.")
         self.data.set(name, {
             "response": text,
-            "count": "0"
+            "count": "0",
+            "cooldowns": repr(cooldown.GlobalAndUserCooldowns(
+                datetime.timedelta(seconds=5), None)),
         })
         return f"Added !{name}."
 
