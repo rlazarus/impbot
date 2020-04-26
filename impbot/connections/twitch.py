@@ -22,8 +22,12 @@ class TwitchUser(base.User):
     display_name: Optional[str] = attr.ib(cmp=False, default=None)
     # The streamer doesn't have a mod badge, but they have a superset of
     # mod privileges, so this is true for them too.
-    moderator: Optional[bool] = attr.ib(cmp=False, default=None)
+    is_moderator: Optional[bool] = attr.ib(cmp=False, default=None)
     badges: Optional[Set[str]] = attr.ib(cmp=False, default=None)
+
+    @property
+    def moderator(self) -> Optional[bool]:
+        return self.is_moderator
 
     def __str__(self) -> str:
         return self.display_name if self.display_name is not None else self.name
