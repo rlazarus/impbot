@@ -56,7 +56,8 @@ class CustomCommandHandler(command.CommandHandler):
     @web.url("/commands")
     def web(self) -> str:
         commands = [(key, subkeys["response"])
-                    for key, subkeys in self.data.get_all_dicts().items()]
+                    for key, subkeys in self.data.get_all_dicts().items()
+                    if "response" in subkeys]  # Skip aliases.
         return flask.render_template("commands.html", commands=commands)
 
     def _lookup_message(
