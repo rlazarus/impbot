@@ -58,6 +58,7 @@ class TwitchEventConnection(base.Connection):
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
         self.oauth = twitch_util.TwitchOAuth(streamer_username)
+        self.twitch_util = twitch_util.TwitchUtil(self.oauth)
         # threading.Event, not asyncio.Event: We need it for communicating
         # between threads, not between coroutines.
         self.shutdown_event = threading.Event()
@@ -97,9 +98,10 @@ class TwitchEventConnection(base.Connection):
 
                 ping_task.cancel()
 
-    async def subscribe(self, websocket: websockets.WebSocketClientProtocol) \
-        -> Dict[str, str]:
-        channel_id = twitch_util.get_channel_id(self.streamer_username)
+    async def subscribe(
+            self,
+            websocket: websockets.WebSocketClientProtocol) -> Dict[str, str]:
+        channel_id = self.twitch_util.get_channel_id(self.streamer_username)
         nonce = twitch_util.nonce()
 
         await websocket.send(json.dumps({

@@ -13,7 +13,8 @@ class TwitchInfoHandler(command.CommandHandler):
     def __init__(self, streamer_username: str):
         super().__init__()
         self.streamer_username = streamer_username
-        self.streamer_id = twitch_util.get_channel_id(streamer_username)
+        self.oauth = twitch_util.TwitchOAuth(streamer_username)
+        self.twitch_util = twitch_util.TwitchUtil(self.oauth)
 
     # TODO: Support User args in CommandHandler, then take one here.
     def run_followage(self, message: base.Message, who: Optional[str]):
@@ -21,14 +22,11 @@ class TwitchInfoHandler(command.CommandHandler):
             who = message.user.name
         if who.startswith('@'):
             who = who[1:]
-        from_id = twitch_util.get_channel_id(who)
-        response = requests.get(
-            "https://api.twitch.tv/helix/users/follows",
-            params={"from_id": from_id, "to_id": self.streamer_id},
-            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-        if response.status_code != 200:
-            raise base.ServerError(f"{response.status_code} {response.text}")
-        body = response.json()
+        from_id = self.twitch_util.get_channel_id(who)
+        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
+        body = self.twitch_util.helix_get(
+            "users/follows",
+            {"from_id": from_id, "to_id": streamer_id})
         if not body["data"]:
             if who.lower() == message.user.name.lower():
                 return (f"@{message.user} You aren't following "
@@ -66,30 +64,30 @@ class TwitchInfoHandler(command.CommandHandler):
         return self.run_follows()
 
     def run_follows(self):
-        response = requests.get(
-            "https://api.twitch.tv/helix/users/follows",
-            params={"to_id": self.streamer_id, "first": 1},
-            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
-        if response.status_code != 200:
-            raise base.ServerError(f"{response.status_code} {response.text}")
-        followers = response.json()["total"]
+        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
+        body = self.twitch_util.helix_get("users/follows",
+                                          {"to_id": streamer_id, "first": 1})
+        followers = body["total"]
         return f"{self.streamer_username} has {followers:,} followers."
 
     def run_game(self):
-        data = twitch_util.get_stream_data(self.streamer_id)
+        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
+        data = self.twitch_util.get_stream_data(streamer_id)
         if data == twitch_util.OFFLINE:
             return f"{self.streamer_username} is offline."
-        game = twitch_util.game_name(data["game_id"])
+        game = self.twitch_util.game_name(data["game_id"])
         return f"{self.streamer_username} is streaming {game}."
 
     def run_title(self):
-        data = twitch_util.get_stream_data(self.streamer_id)
+        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
+        data = self.twitch_util.get_stream_data(streamer_id)
         if data == twitch_util.OFFLINE:
             return f"{self.streamer_username} is offline."
         return f"{self.streamer_username}'s title is: {data['title']}"
 
     def run_uptime(self):
-        data = twitch_util.get_stream_data(self.streamer_id)
+        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
+        data = self.twitch_util.get_stream_data(streamer_id)
         if data == twitch_util.OFFLINE:
             return f"{self.streamer_username} is offline."
         started_at = datetime.datetime.fromisoformat(data["started_at"][:-1])

@@ -60,15 +60,19 @@ class TwitchWebhookConnection(base.Connection):
     def __init__(self, reply_conn: base.ChatConnection,
                  streamer_username: str) -> None:
         self.reply_conn = reply_conn
-        self.user_id = twitch_util.get_channel_id(streamer_username)
+        self.streamer_username = streamer_username
+        self.twitch_oauth = twitch_util.TwitchOAuth(streamer_username)
+        self.twitch_util = twitch_util.TwitchUtil(self.twitch_oauth)
         self.on_event: Optional[base.EventCallback] = None  # Set in run().
-        self.last_data = twitch_util.get_stream_data(self.user_id)
+        self.last_data: Optional[twitch_util.StreamData] = None
         self.shutdown_event = threading.Event()
 
     def run(self, on_event: base.EventCallback) -> None:
+        user_id = self.twitch_util.get_channel_id(self.streamer_username)
+        self.last_data = self.twitch_util.get_stream_data(user_id)
         self.on_event = on_event
-        self._subscribe(f"/streams?user_id={self.user_id}")
-        self._subscribe(f"/users/follows?first=1&to_id={self.user_id}")
+        self._subscribe(f"/streams?user_id={user_id}")
+        self._subscribe(f"/users/follows?first=1&to_id={user_id}")
         # We don't need to do anything -- 100% of the work happens in the web
         # handler now. Just wait until it's time to shut down, then return.
         self.shutdown_event.wait()
@@ -156,7 +160,7 @@ class TwitchWebhookConnection(base.Connection):
             data = body["data"][0]
             data = cast(twitch_util.OnlineStreamData, data)
             if self.last_data == OFFLINE:
-                game = twitch_util.game_name(int(data["game_id"]))
+                game = self.twitch_util.game_name(int(data["game_id"]))
                 self.on_event(StreamStartedEvent(
                     self.reply_conn, data["title"], game))
             else:
@@ -165,7 +169,7 @@ class TwitchWebhookConnection(base.Connection):
                     self.on_event(StreamChangedEvent(
                         self.reply_conn, title=title, game=None))
                 if data["game_id"] != self.last_data["game_id"]:
-                    game = twitch_util.game_name(int(data["game_id"]))
+                    game = self.twitch_util.game_name(int(data["game_id"]))
                     self.on_event(StreamChangedEvent(
                         self.reply_conn, title=None, game=game))
             self.last_data = data
@@ -178,26 +182,6 @@ class TwitchWebhookConnection(base.Connection):
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
-
-
-if __name__ == "__main__":
-    rootLogger = logging.getLogger()
-    rootLogger.setLevel(logging.DEBUG)
-    rootLogger.addHandler(logging.StreamHandler(sys.stdout))
-
-    chat = twitch.TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH,
-                                       "Shrdluuu", [])
-    connections = [
-        WebServerConnection("127.0.0.1", 5000),
-        chat,
-        TwitchWebhookConnection(chat, "Shrdluuu"),
-        stdio.StdioConnection()
-    ]
-    handlers = [
-        hello.HelloHandler(),
-    ]
-    b = bot.Bot("impbot.sqlite", connections, [], handlers)
-    b.main()
 
 
 def _topic(link_header: str) -> str:
