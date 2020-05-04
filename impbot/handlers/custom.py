@@ -1,5 +1,7 @@
+import collections
 import datetime
-from typing import Optional, List, Dict, Tuple, cast
+import html
+from typing import Optional, Dict, Tuple, cast
 
 import flask
 
@@ -51,13 +53,25 @@ class CustomCommandHandler(command.CommandHandler):
             self.data.set_subkey(name, "cooldowns", repr(cooldowns))
         count = int(comm["count"]) + 1
         self.data.set_subkey(name, "count", str(count))
-        return comm["response"].replace("(count)", str(count))
+        return comm["response"].replace("(count)", f"{count:,}")
 
     @web.url("/commands")
     def web(self) -> str:
-        commands = [(key, subkeys["response"])
-                    for key, subkeys in self.data.get_all_dicts().items()
-                    if "response" in subkeys]  # Skip aliases.
+        data = self.data.get_all_dicts().items()
+        aliases = collections.defaultdict(set)
+        for key, subkeys in data:
+            if "alias" in subkeys:
+                aliases[subkeys["alias"]].add(html.escape(f"!{key}"))
+
+        # This omits any aliases to commands that don't exist.
+        commands = []
+        for key, subkeys in data:
+            if "response" not in subkeys:  # Skip aliases.
+                continue
+            response = html.escape(subkeys["response"]).replace(
+                "(count)",
+                "<span class='variable'>(count)</span>")
+            commands.append((html.escape(f"!{key}"), aliases[key], response))
         return flask.render_template("commands.html", commands=commands)
 
     def _lookup_message(

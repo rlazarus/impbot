@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Impbot Commands</title>
+    <title>Commands</title>
     <style type="text/css">
         @import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&display=swap');
         body {
@@ -23,19 +23,28 @@
             vertical-align: top;
         }
         td:first-child {
-            font-weight: bold;
             text-align: right;
         }
         tr:nth-child(even) {
             background-color: #dddddd;
         }
+        div.command {
+            font-weight: bold;
+        }
+        span.variable {
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
+<h1>Commands</h1>
 <table>
-    <h1>Commands</h1>
-    {% for command, response in commands %}
-        <tr><td>!{{command}}</td><td>{{response}}</td></tr>
+    {% for command, aliases, response in commands %}
+        <tr><td><div class="command">{{command|safe}}</div>
+        {% if aliases %}
+            <div>{{aliases|join(" ")}}</div>
+        {% endif %}
+        </td><td>{{response|safe}}</td></tr>
     {% endfor %}
 </table>
 </body>
