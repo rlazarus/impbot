@@ -6,6 +6,7 @@ from typing import Optional
 
 import attr
 import obswebsocket
+import websocket
 from obswebsocket import requests, events, exceptions
 
 from impbot.core import base
@@ -99,7 +100,8 @@ class ReconnectingObsws(obswebsocket.obsws):
             try:
                 super().connect(host, port)
                 self.on_event(ObsConnected(None))
-            except obswebsocket.exceptions.ConnectionFailure as e:
+            except (obswebsocket.exceptions.ConnectionFailure,
+                    websocket.WebSocketAddressException) as e:
                 logger.error(f"Couldn't connect, retrying in 5 seconds: {e}")
                 time.sleep(5)
             else:
