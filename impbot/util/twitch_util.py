@@ -139,14 +139,19 @@ class TwitchUtil:
             url=f"https://api.twitch.tv/helix/{path}",
             params=params,
             headers={
-                "Authorization": f"OAuth {self.oauth.access_token}",
+                "Authorization": f"Bearer {self.oauth.access_token}",
                 "Client-ID": secret.TWITCH_CLIENT_ID
             })
-        prepared_request = request.prepare()
         with requests.Session() as s:
-            response = s.send(prepared_request)
+            response = s.send(request.prepare())
+        if response.status_code == 401:
+            self.oauth.refresh()
+            request.headers.update(
+                {"Authorization": f"Bearer {self.oauth.access_token}"})
+            with requests.Session() as s:
+                response = s.send(request.prepare())
         if response.status_code != 200:
-            logging.error(prepared_request)
+            logging.error(request.prepare())
             logging.error(f"{request.method} {request.url} {request.params} "
                           f"{request.headers}")
             logging.error(f"{response.status_code} {response.text}")
