@@ -11,7 +11,7 @@ from impbot.core import base
 from impbot.handlers import custom
 from impbot.handlers import hello
 from impbot.handlers import roulette
-from impbot.connections import irc
+from impbot.connections import irc_conn
 import secret
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class TwitchMessage(base.Message):
     msg_id: Optional[str]
 
 
-class TwitchChatConnection(irc.IrcConnection):
+class TwitchChatConnection(irc_conn.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
                  streamer_username: str, admins: List[str]) -> None:
         if not oauth_token.startswith("oauth:"):
