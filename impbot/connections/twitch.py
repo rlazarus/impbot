@@ -77,6 +77,10 @@ class TwitchChatConnection(irc_conn.IrcConnection):
             text = " " + text
         super().say(text)
 
+    def command(self, text: str) -> None:
+        # Like say(), but without nerfing commands.
+        super().say(text)
+
     def on_reconnect(self, _conn: client.ServerConnection,
                      _event: client.Event) -> None:
         logger.info("Got a RECONNECT command from Twitch.")
@@ -86,12 +90,12 @@ class TwitchChatConnection(irc_conn.IrcConnection):
     # TODO: Add a more general moderation API to ChatConnection.
     def timeout(self, target: base.User, duration: datetime.timedelta,
                 reply: Optional[str] = None) -> None:
-        super().say(f".timeout {target.name} {duration.total_seconds():.0f}")
+        self.command(f".timeout {target.name} {duration.total_seconds():.0f}")
         if reply:
             self.say(reply)
 
     def permaban(self, target: base.User, reply: Optional[str] = None) -> None:
-        super().say(f".ban {target.name}")
+        self.command(f".ban {target.name}")
         if reply:
             self.say(reply)
 
@@ -100,7 +104,7 @@ class TwitchChatConnection(irc_conn.IrcConnection):
         if not message.id:
             raise base.ServerError(
                 f"Message {message} is missing id, can't delete")
-        super().say(f".delete {message.id}")
+        self.command(f".delete {message.id}")
         if reply:
             self.say(reply)
 

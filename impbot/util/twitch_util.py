@@ -7,6 +7,7 @@ from typing import Dict, Union, Optional, List, Any
 from urllib import parse
 
 import requests
+from irc import client
 from mypy_extensions import TypedDict
 
 import secret
@@ -45,6 +46,8 @@ class TwitchOAuth:
             "channel_subscriptions",  # For TwitchEventConnection
             "channel_editor",  # For TwitchEditorHandler
             "channel:read:redemptions",  # For TwitchEventConnection
+            "chat:edit", "chat:read", # For TwitchUtil.irc_command_as_streamer()
+            "channel:moderate",
         ]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,
@@ -157,6 +160,27 @@ class TwitchUtil:
             logging.error(f"{response.status_code} {response.text}")
             raise base.ServerError(f"{response.status_code} {response.text}")
         return response.json()
+
+    def irc_command_as_streamer(self, commands: Union[str, List[str]]):
+        if isinstance(commands, str):
+            commands = [commands]
+
+        channel = "#" + self.oauth.streamer_username.lower()
+
+        def on_welcome(connection: client.ServerConnection, _: client.Event):
+            for command in commands:
+                connection.privmsg(channel, command)
+            connection.disconnect()
+
+        self.oauth.refresh()
+        reactor = client.Reactor()
+        connection = reactor.server().connect(
+            "irc.chat.twitch.tv", 6667, self.oauth.streamer_username.lower(),
+            password=f"oauth:{self.oauth.access_token}")
+        connection.add_global_handler("welcome", on_welcome)
+        while connection.is_connected():
+            reactor.process_once(0.2)
+
 
 def nonce() -> str:
     alphabet = string.ascii_letters + string.digits
