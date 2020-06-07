@@ -1,7 +1,8 @@
 import logging
 import sqlite3
 import sys
-from typing import List, Tuple, Optional, Dict, Union
+import threading
+from typing import List, Optional, Dict, Union
 
 logger = logging.getLogger(__name__)
 _db: Optional[str] = None
@@ -67,15 +68,16 @@ def shutdown() -> None:
 class Namespace(object):
     def __init__(self, namespace: str) -> None:
         self.namespace = namespace
-        self._conn: Optional[sqlite3.Connection] = None
+        self.thread_local = threading.local()
 
     @property
     def conn(self) -> sqlite3.Connection:
-        if not self._conn:
-            assert _db, "data.startup() not called"
-            self._conn = sqlite3.connect(_db, uri=True)
-            self._conn.execute("PRAGMA FOREIGN_KEYS = on")
-        return self._conn
+        if not hasattr(self.thread_local, "conn"):
+            if not _db:
+                raise ValueError("data.startup() not called")
+            self.thread_local.conn = sqlite3.connect(_db, uri=True)
+            self.thread_local.conn.execute("PRAGMA FOREIGN_KEYS = on")
+        return self.thread_local.conn
 
     def get(self, key: str, subkey: Optional[str] = None,
             default: Optional[str] = None) -> str:
