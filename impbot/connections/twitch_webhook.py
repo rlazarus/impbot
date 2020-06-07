@@ -1,22 +1,15 @@
 import hashlib
 import logging
-import sys
 import threading
 from datetime import datetime
 from typing import Optional, Union, List, cast
 
 import attr
 import flask
-import requests
 from mypy_extensions import TypedDict
 
-import secret
-from impbot.connections import stdio, twitch
 from impbot.core import base
-from impbot.core import bot
 from impbot.core import web
-from impbot.core.web import WebServerConnection
-from impbot.handlers import hello
 from impbot.util import twitch_util
 from impbot.util.twitch_util import OFFLINE
 
@@ -85,24 +78,12 @@ class TwitchWebhookConnection(base.Connection):
         logger.debug(f"Secret: {self.secret}")
         callback_url = flask.url_for("TwitchWebhookConnection.webhook",
                                      _external=True)
-        # TODO: Better to refresh conditionally here -- move this into
-        #       TwitchUtil.
-        self.twitch_oauth.refresh()
-        response = requests.post(
-            "https://api.twitch.tv/helix/webhooks/hub",
-            json={"hub.callback": callback_url,
-                  "hub.mode": "subscribe",
-                  "hub.topic": f"https://api.twitch.tv/helix{topic}",
-                  "hub.lease_seconds": 60 * 60 * 24 * 7,
-                  "hub.secret": self.secret,
-                  },
-            headers={"Client-ID": secret.TWITCH_CLIENT_ID,
-                     "Authorization": f"Bearer {self.twitch_oauth.access_token}"})
-        if response.status_code != 202:
-            logger.error(response.status_code)
-            logger.error(response.headers)
-            logger.error(response.text)
-            raise base.ServerError(response)
+        json = {"hub.callback": callback_url,
+                "hub.mode": "subscribe",
+                "hub.topic": f"https://api.twitch.tv/helix{topic}",
+                "hub.lease_seconds": 60 * 60 * 24 * 7,
+                "hub.secret": self.secret}
+        self.twitch_util.helix_post("webhooks/hub", json, expected_status=202)
 
     @web.url("/twitch_webhook", methods=["GET", "POST"])
     def webhook(self) -> Union[str, flask.Response]:

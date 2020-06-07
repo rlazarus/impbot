@@ -46,8 +46,8 @@ class TwitchOAuth:
             "channel_subscriptions",  # For TwitchEventConnection
             "channel_editor",  # For TwitchEditorHandler
             "channel:read:redemptions",  # For TwitchEventConnection
-            "chat:edit", "chat:read", # For TwitchUtil.irc_command_as_streamer()
-            "channel:moderate",
+            # For TwitchUtil.irc_command_as_streamer():
+            "chat:edit", "chat:read", "channel:moderate",
         ]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,
@@ -136,7 +136,8 @@ class TwitchUtil:
             raise base.ServerError(f"No Game with ID {game_id}")
         return body["data"][0]["name"]
 
-    def helix_get(self, path: str, params: Dict[str, Any]) -> Dict:
+    def helix_get(self, path: str, params: Dict[str, Any],
+                  expected_status: int = 200) -> Dict:
         request = requests.Request(
             method="GET",
             url=f"https://api.twitch.tv/helix/{path}",
@@ -145,6 +146,22 @@ class TwitchUtil:
                 "Authorization": f"Bearer {self.oauth.access_token}",
                 "Client-ID": secret.TWITCH_CLIENT_ID
             })
+        return self._helix_request(request, expected_status=expected_status)
+
+    def helix_post(self, path: str, json: Dict[str, Any],
+                   expected_status: int = 200) -> Dict:
+        request = requests.Request(
+            method="POST",
+            url=f"https://api.twitch.tv/helix/{path}",
+            json=json,
+            headers={
+                "Authorization": f"Bearer {self.oauth.access_token}",
+                "Client-ID": secret.TWITCH_CLIENT_ID
+            }
+        )
+        return self._helix_request(request, expected_status=expected_status)
+
+    def _helix_request(self, request, expected_status: int = 200) -> Dict:
         with requests.Session() as s:
             response = s.send(request.prepare())
         if response.status_code == 401:
@@ -153,7 +170,7 @@ class TwitchUtil:
                 {"Authorization": f"Bearer {self.oauth.access_token}"})
             with requests.Session() as s:
                 response = s.send(request.prepare())
-        if response.status_code != 200:
+        if response.status_code != expected_status:
             logging.error(request.prepare())
             logging.error(f"{request.method} {request.url} {request.params} "
                           f"{request.headers}")
