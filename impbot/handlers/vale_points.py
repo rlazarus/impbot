@@ -71,16 +71,14 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
                    f"have it for the next stream.)"
 
 
-class ValePointsCleanupHandler(base.Handler[twitch_webhook.StreamStartedEvent]):
+class ValePointsCleanupObserver(
+        base.Observer[twitch_webhook.StreamStartedEvent]):
     def __init__(self, points_handler: ValePointsHandler):
         super().__init__()
         self.data = points_handler.data
         self.twitch_util = points_handler.twitch_util
 
-    def check(self, event: twitch_webhook.StreamStartedEvent) -> bool:
-        return True
-
-    def run(self, event: twitch_webhook.StreamStartedEvent) -> None:
+    def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
         timezone = pytz.timezone("America/Los_Angeles")
         today = str(datetime.datetime.now(tz=timezone).date())
         commands = []
