@@ -14,15 +14,14 @@ REDEEMED_BETWEEN_STREAMS = "REDEEMED_BETWEEN_STREAMS"
 
 class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
     def __init__(self, twitch_conn: twitch.TwitchChatConnection,
-                 timer_conn: timer.TimerConnection, streamer_username: str):
+                 timer_conn: timer.TimerConnection,
+                 util: twitch_util.TwitchUtil):
         super().__init__()
         self.twitch_conn = twitch_conn
         self.timer_conn = timer_conn
-        self.streamer_username = streamer_username
         self.timer: Optional[timer.Timer] = None
         self.end_time: Optional[datetime.datetime] = None
-        oauth = twitch_util.TwitchOAuth(streamer_username)
-        self.twitch_util = twitch_util.TwitchUtil(oauth)
+        self.twitch_util = util
 
     def check(self, event: twitch_event.PointsReward) -> bool:
         return event.reward_title.startswith(
@@ -60,7 +59,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             return f"@{event.user} What, again? valeThink"
         self.twitch_util.irc_command_as_streamer(f".vip {event.user}")
         stream_data = self.twitch_util.get_stream_data(
-            username=self.streamer_username)
+            username=self.twitch_util.streamer_username)
         if stream_data != OFFLINE:
             timezone = pytz.timezone("America/Los_Angeles")
             today = str(datetime.datetime.now(tz=timezone).date())

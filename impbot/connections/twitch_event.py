@@ -51,14 +51,12 @@ class PointsReward(TwitchEvent):
 
 
 class TwitchEventConnection(base.Connection):
-    def __init__(self, streamer_username: str,
+    def __init__(self, util: twitch_util.TwitchUtil,
                  reply_conn: Optional[base.ChatConnection] = None) -> None:
-        self.streamer_username = streamer_username
         self.reply_conn = reply_conn
         self.event_loop = asyncio.new_event_loop()
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
-        self.oauth = twitch_util.TwitchOAuth(streamer_username)
-        self.twitch_util = twitch_util.TwitchUtil(self.oauth)
+        self.twitch_util = util
         # threading.Event, not asyncio.Event: We need it for communicating
         # between threads, not between coroutines.
         self.shutdown_event = threading.Event()
@@ -66,7 +64,7 @@ class TwitchEventConnection(base.Connection):
         asyncio.set_event_loop(self.event_loop)
 
     def run(self, on_event: base.EventCallback) -> None:
-        self.oauth.maybe_authorize()
+        self.twitch_util.oauth.maybe_authorize()
 
         # The websockets library wants to be called asynchronously, so bridge
         # into async code here.
@@ -78,7 +76,7 @@ class TwitchEventConnection(base.Connection):
                                           close_timeout=1) as self.websocket:
                 response = await self.subscribe(self.websocket)
                 if response["error"] == "ERR_BADAUTH":
-                    self.oauth.refresh()
+                    self.twitch_util.oauth.refresh()
                     response = await self.subscribe(self.websocket)
                     if response["error"] == "ERR_BADAUTH":
                         raise base.ServerError("Two BADAUTH errors, giving up.")
@@ -101,7 +99,8 @@ class TwitchEventConnection(base.Connection):
     async def subscribe(
             self,
             websocket: websockets.WebSocketClientProtocol) -> Dict[str, str]:
-        channel_id = self.twitch_util.get_channel_id(self.streamer_username)
+        channel_id = self.twitch_util.get_channel_id(
+            self.twitch_util.streamer_username)
         nonce = twitch_util.nonce()
 
         await websocket.send(json.dumps({
@@ -113,7 +112,7 @@ class TwitchEventConnection(base.Connection):
                     f"channel-subscribe-events-v1.{channel_id}",
                     f"channel-points-channel-v1.{channel_id}",
                 ],
-                "auth_token": self.oauth.access_token,
+                "auth_token": self.twitch_util.oauth.access_token,
             }
         }))
 

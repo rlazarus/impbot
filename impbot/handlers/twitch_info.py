@@ -1,20 +1,16 @@
 import datetime
 from typing import Optional
 
-import requests
-
-import secret
 from impbot.core import base
 from impbot.handlers import command
 from impbot.util import twitch_util
 
 
 class TwitchInfoHandler(command.CommandHandler):
-    def __init__(self, streamer_username: str):
+    def __init__(self, util: twitch_util.TwitchUtil):
         super().__init__()
-        self.streamer_username = streamer_username
-        self.oauth = twitch_util.TwitchOAuth(streamer_username)
-        self.twitch_util = twitch_util.TwitchUtil(self.oauth)
+        self.twitch_util = util
+        self.streamer_username = util.streamer_username
 
     # TODO: Support User args in CommandHandler, then take one here.
     def run_followage(self, message: base.Message, who: Optional[str]):

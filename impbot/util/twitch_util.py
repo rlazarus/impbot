@@ -106,6 +106,7 @@ OFFLINE = OfflineStreamData()
 class TwitchUtil:
     def __init__(self, oauth: TwitchOAuth):
         self.oauth = oauth
+        self.streamer_username = oauth.streamer_username
 
     def get_channel_id(self, streamer_username: str) -> int:
         # Canonicalize the username to share a cache entry.

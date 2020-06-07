@@ -12,18 +12,17 @@ logger = logging.getLogger(__name__)
 
 
 class TwitchEditorHandler(command.CommandHandler):
-    def __init__(self, streamer_username: str):
+    def __init__(self, util: twitch_util.TwitchUtil):
         super().__init__()
-        self.streamer_username = streamer_username
-        self.oauth = twitch_util.TwitchOAuth(streamer_username)
-        self.twitch_util = twitch_util.TwitchUtil(self.oauth)
+        self.twitch_util = util
 
     def startup(self) -> None:
-        self.oauth.maybe_authorize()
+        self.twitch_util.oauth.maybe_authorize()
 
     def run_title(self, message: base.Message, title: Optional[str]):
         if not title:
-            data = self.twitch_util.get_stream_data(username=self.streamer_username)
+            data = self.twitch_util.get_stream_data(
+                username=self.twitch_util.streamer_username)
             if data == twitch_util.OFFLINE:
                 return "Stream is offline."
             current_title = data["title"]
@@ -35,7 +34,8 @@ class TwitchEditorHandler(command.CommandHandler):
 
     def run_game(self, message: base.Message, game: Optional[str]):
         if not game:
-            data = self.twitch_util.get_stream_data(username=self.streamer_username)
+            data = self.twitch_util.get_stream_data(
+                username=self.twitch_util.streamer_username)
             if data == twitch_util.OFFLINE:
                 return "Stream is offline."
             data = cast(twitch_util.OnlineStreamData, data)
@@ -52,11 +52,12 @@ class TwitchEditorHandler(command.CommandHandler):
         if not title and not game:
             raise ValueError("Must pass either title or game.")
 
-        channel_id = self.twitch_util.get_channel_id(self.streamer_username)
+        channel_id = self.twitch_util.get_channel_id(
+            self.twitch_util.streamer_username)
         url = f"https://api.twitch.tv/kraken/channels/{channel_id}"
         headers = {
             "Accept": "application/vnd.twitchtv.v5+json",
-            "Authorization": f"OAuth {self.oauth.access_token}",
+            "Authorization": f"OAuth {self.twitch_util.oauth.access_token}",
             "Client-ID": secret.TWITCH_CLIENT_ID,
         }
         json: Dict[str, Dict[str, str]] = {"channel": {}}
@@ -67,8 +68,9 @@ class TwitchEditorHandler(command.CommandHandler):
 
         response = requests.put(url, headers=headers, json=json)
         if response.status_code == 401:
-            self.oauth.refresh()
-            headers["Authorization"] = f"OAuth {self.oauth.access_token}"
+            self.twitch_util.oauth.refresh()
+            token = self.twitch_util.oauth.access_token
+            headers["Authorization"] = f"OAuth {token}"
             response = requests.put(url, headers=headers, json=json)
         if response.status_code == 401:
             raise base.ServerError(f"401 after refreshing: {response.text}")
