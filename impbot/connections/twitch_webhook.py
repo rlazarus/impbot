@@ -85,6 +85,9 @@ class TwitchWebhookConnection(base.Connection):
         logger.debug(f"Secret: {self.secret}")
         callback_url = flask.url_for("TwitchWebhookConnection.webhook",
                                      _external=True)
+        # TODO: Better to refresh conditionally here -- move this into
+        #       TwitchUtil.
+        self.twitch_oauth.refresh()
         response = requests.post(
             "https://api.twitch.tv/helix/webhooks/hub",
             json={"hub.callback": callback_url,
@@ -93,7 +96,8 @@ class TwitchWebhookConnection(base.Connection):
                   "hub.lease_seconds": 60 * 60 * 24 * 7,
                   "hub.secret": self.secret,
                   },
-            headers={"Client-ID": secret.TWITCH_CLIENT_ID})
+            headers={"Client-ID": secret.TWITCH_CLIENT_ID,
+                     "Authorization": f"Bearer {self.twitch_oauth.access_token}"})
         if response.status_code != 202:
             logger.error(response.status_code)
             logger.error(response.headers)
