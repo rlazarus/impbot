@@ -116,7 +116,7 @@ class TwitchUtil:
     def _get_channel_id(self, streamer_username: str) -> int:
         body = self.helix_get("users", {"login": streamer_username})
         if not body["data"]:
-            raise base.AdminError(f"No Twitch channel '{streamer_username}'")
+            raise KeyError(f"No Twitch channel '{streamer_username}'")
         return int(body["data"][0]["id"])
 
     def get_stream_data(self, user_id: Optional[int] = None,

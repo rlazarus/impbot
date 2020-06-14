@@ -18,7 +18,10 @@ class TwitchInfoHandler(command.CommandHandler):
             who = message.user.name
         if who.startswith('@'):
             who = who[1:]
-        from_id = self.twitch_util.get_channel_id(who)
+        try:
+            from_id = self.twitch_util.get_channel_id(who)
+        except KeyError:
+            raise base.UserError(f"@{message.user} {who} isn't a Twitch user.")
         streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
         body = self.twitch_util.helix_get(
             "users/follows",
