@@ -4,7 +4,7 @@ import queue
 import sys
 import threading
 from logging import handlers
-from typing import Optional, Dict, Sequence, List, Any
+from typing import Optional, Dict, Sequence, List, Any, Union, TypeVar
 
 import attr
 
@@ -44,9 +44,24 @@ class Shutdown(base.Event):
 
 class Bot:
     def __init__(self, db: Optional[str],
-                 connections: Sequence[base.Connection],
-                 observers: Sequence[base.Observer[Any]],
-                 handlers: Sequence[base.Handler[Any]]) -> None:
+                 modules: List[Union[base.Module, List[base.Module]]]) -> None:
+        modules = _flatten(modules)
+
+        connections = []
+        observers = []
+        handlers = []
+        for m in modules:
+            if isinstance(m, base.Connection):
+                connections.append(m)
+            if isinstance(m, base.Observer):
+                observers.append(m)
+            if isinstance(m, base.Handler):
+                handlers.append(m)
+            if not isinstance(m,
+                              (base.Connection, base.Observer, base.Handler)):
+                raise TypeError(f"{type(m).__name__} is not a Connection, "
+                                f"Observer, or Handler.")
+
         self.connections = connections
         self.observers = observers
 
@@ -162,3 +177,16 @@ class Bot:
                 graceful_exit = False
         if not graceful_exit:
             sys.exit(1)
+
+
+T = TypeVar('T')
+
+
+def _flatten(input: List[Union[T, List[T]]]) -> List[T]:
+    output = []
+    for i in input:
+        if isinstance(i, list):
+            output.extend(_flatten(i))
+        else:
+            output.append(i)
+    return output

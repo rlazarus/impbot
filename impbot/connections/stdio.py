@@ -26,10 +26,11 @@ class StdioConnection(base.ChatConnection):
 
 
 if __name__ == "__main__":
-    handlers = [
+    modules = [
+        StdioConnection(),
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", [StdioConnection()], [], handlers)
+    b = bot.Bot("impbot.sqlite", modules)
     b.main()

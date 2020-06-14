@@ -114,14 +114,12 @@ if __name__ == "__main__":
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    connections = [
+    modules = [
         TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu",
                              []),
-    ]
-    handlers = [
         custom.CustomCommandHandler(),
         hello.HelloHandler(),
         roulette.RouletteHandler(),
     ]
-    b = bot.Bot("impbot.sqlite", connections, [], handlers)
+    b = bot.Bot("impbot.sqlite", modules)
     b.main()
