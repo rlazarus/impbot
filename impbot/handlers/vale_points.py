@@ -1,13 +1,17 @@
 import datetime
+import logging
 from typing import Optional
 
 import pytz
+import requests
 
+import secret
 from impbot.connections import twitch_event, timer, twitch, twitch_webhook
 from impbot.core import base
 from impbot.util import twitch_util
 from impbot.util.twitch_util import OFFLINE
 
+logger = logging.getLogger(__name__)
 DURATION = datetime.timedelta(minutes=2)
 REDEEMED_BETWEEN_STREAMS = "REDEEMED_BETWEEN_STREAMS"
 
@@ -25,13 +29,15 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
 
     def check(self, event: twitch_event.PointsReward) -> bool:
         return event.reward_title.startswith(
-            ("Emote only mode", "VIP for the day"))
+            ("Emote only mode", "VIP for the day", "Movie night pass"))
 
     def run(self, event: twitch_event.PointsReward) -> Optional[str]:
         if event.reward_title.startswith("Emote only mode"):
             return self.emote_only(event)
         elif event.reward_title.startswith("VIP for the day"):
             return self.vip(event)
+        elif event.reward_title.startswith("Movie night pass"):
+            return self.movie_night(event)
         else:
             return None
 
@@ -69,6 +75,27 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             self.data.set(event.user.name, REDEEMED_BETWEEN_STREAMS)
             return f"{event.user} redeemed VIP for the Day! valeJoy (You'll " \
                    f"have it for the next stream.)"
+
+    def movie_night(self, event: twitch_event.PointsReward) -> str:
+        uid = self.twitch_util.get_channel_id(event.user.name)
+        url = f"https://valestream.fatalsyntax.com/api/twitch_token/{uid}"
+        response = requests.post(url, headers={
+            "Authorization": secret.MOVIE_NIGHT_API_KEY,
+            "Accept": "application/json",
+        })
+        if response.status_code != 200:
+            logger.error(response.status_code)
+            logger.error(response.text)
+            return (f"@{event.user} tried to redeem a movie night pass, but "
+                    f"something went wrong. valeS")
+        json = response.json()
+        if not json["success"]:
+            logger.error(json)
+            return (f"@{event.user} tried to redeem a movie night pass, but "
+                    f"something went wrong. valeRIP")
+        logger.info(json)
+        return (f"@{event.user} redeemed a movie night pass! See you there! "
+                f"valeCool")
 
 
 class ValePointsCleanupObserver(
