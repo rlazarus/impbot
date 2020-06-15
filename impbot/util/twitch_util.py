@@ -177,6 +177,8 @@ class TwitchUtil:
                           f"{request.headers}")
             logging.error(f"{response.status_code} {response.text}")
             raise base.ServerError(f"{response.status_code} {response.text}")
+        if not response.text:
+            return {}
         return response.json()
 
     def irc_command_as_streamer(self, commands: Union[str, List[str]]):
