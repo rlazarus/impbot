@@ -28,7 +28,7 @@ class TimerConnection(base.Connection):
         self.timers.append(timer)
         return timer
 
-    def remove(self, timer: "Timer"):
+    def remove(self, timer: "Timer") -> None:
         self.timers.remove(timer)
 
 
@@ -42,21 +42,28 @@ class Timer:
         self.timer_conn = timer_conn
         self.timer: Optional[threading.Timer] = None
         self.cancelled = threading.Event()
+        self.finished = threading.Event()
         self.start_timer()
 
-    def start_timer(self):
+    def start_timer(self) -> None:
         self.timer = threading.Timer(self.interval.total_seconds(),
                                      self.run_as_lambda)
         self.timer.start()
 
-    def run_as_lambda(self):
-        self.timer_conn.on_event(lambda_event.LambdaEvent(self.run))
+    def run_as_lambda(self) -> None:
+        def run() -> None:
+            self.run()
+            self.finished.set()
+        self.timer_conn.on_event(lambda_event.LambdaEvent(run))
         if self.repeat and not self.cancelled.is_set():
             self.start_timer()
         else:
             self.timer_conn.remove(self)
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.timer.cancel()
         self.timer_conn.remove(self)
         self.cancelled.set()
+
+    def active(self) -> bool:
+        return not self.cancelled.is_set() and not self.finished.is_set()

@@ -42,7 +42,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             return None
 
     def emote_only(self, event: twitch_event.PointsReward) -> str:
-        if not self.timer:
+        if not self.timer or not self.timer.active():
             self.twitch_conn.command(".emoteonly")
             self.end_time = datetime.datetime.now() + DURATION
             self.timer = self.timer_conn.start(
