@@ -5,7 +5,7 @@ from typing import Set, Optional, Dict, cast
 
 from obswebsocket import events, requests
 
-from impbot.connections import obs
+from impbot.connections import obs, timer
 from impbot.connections.obs import ObsMessage, ObsConnected
 from impbot.core import base
 
@@ -19,17 +19,18 @@ logger = logging.getLogger(__name__)
 class MuteHandler(base.Handler[obs.ObsEvent]):
     def __init__(self, streamer_name: str, mic_source: str,
                  mutable_scene_items: Set[str], obs_conn: obs.ObsConnection,
-                 chat_conn: base.ChatConnection):
+                 chat_conn: base.ChatConnection,
+                 timer_conn: timer.TimerConnection):
         super().__init__()
         self.streamer_name = streamer_name
         self.mic_source = mic_source
         self.mutable_scene_items = mutable_scene_items
         self.obsws = obs_conn.obsws
         self.chat_conn = chat_conn
+        self.timer_conn = timer_conn
         self.muted: bool = False
         self.mutable_items_visible: Dict[str, bool] = {}
-        self.alert_lock = threading.Lock()
-        self.alert_timer: Optional[threading.Timer] = None
+        self.timer: Optional[timer.Timer] = None
         # This is set True when we announce the mic is muted, and set False
         # again when the mic unmutes or stream ends (but not on any other state
         # change). It keeps us from announcing twice on a single muted mic.
@@ -91,31 +92,26 @@ class MuteHandler(base.Handler[obs.ObsEvent]):
         return self.muted and not any(self.mutable_items_visible.values())
 
     def start_timer(self) -> None:
-        with self.alert_lock:
-            if self.alert_timer:
-                logger.info("Timer already started.")
-                return
-            logger.info("Timer starting!")
-            self.alert_timer = threading.Timer(INTERVAL.total_seconds(),
-                                               self.alert_now)
-            self.alert_timer.start()
+        if self.timer and self.timer.active():
+            logger.info("Timer already started.")
+            return
+        logger.info("Timer starting!")
+        self.timer = self.timer_conn.start(INTERVAL, self.alert_now)
 
     def cancel_timer(self) -> None:
-        with self.alert_lock:
-            if not self.alert_timer:
-                logger.info("No timer.")
-                return
-            logger.info("Timer canceling!")
-            self.alert_timer.cancel()
-            self.alert_timer = None
+        if not (self.timer and self.timer.active()):
+            logger.info("No timer.")
+            return
+        logger.info("Timer canceling!")
+        self.timer.cancel()
+        self.timer = None
 
     def alert_now(self) -> None:
-        with self.alert_lock:
-            if self.has_announced:
-                logger.info("Already announced!")
-            if self.accidentally_muted() and not self.has_announced:
-                logger.info("Announcing!")
-                self.chat_conn.say(
-                    f"@{self.streamer_name} HEY STREAMER YOU'RE MUTED <3")
-                self.has_announced = True
-            self.alert_timer = None
+        if self.has_announced:
+            logger.info("Already announced!")
+        if self.accidentally_muted() and not self.has_announced:
+            logger.info("Announcing!")
+            self.chat_conn.say(
+                f"@{self.streamer_name} HEY STREAMER YOU'RE MUTED <3")
+            self.has_announced = True
+        self.timer = None
