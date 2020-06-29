@@ -36,34 +36,48 @@ class Timer:
     def __init__(self, timer_conn: TimerConnection,
                  interval: datetime.timedelta, run: Callable[[], None],
                  repeat: bool = False):
-        self.interval = interval
         self.run = run
         self.repeat = repeat
         self.timer_conn = timer_conn
+        self.interval = interval  # Used to extend, when repeat == True.
+        self.end_time = datetime.datetime.now() + interval
         self.timer: Optional[threading.Timer] = None
         self.cancelled = threading.Event()
         self.finished = threading.Event()
         self.start_timer()
 
     def start_timer(self) -> None:
-        self.timer = threading.Timer(self.interval.total_seconds(),
-                                     self.run_as_lambda)
+        interval = (self.end_time - datetime.datetime.now()).total_seconds()
+        self.timer = threading.Timer(interval, self.run_as_lambda)
         self.timer.start()
 
     def run_as_lambda(self) -> None:
         def run() -> None:
-            self.run()
-            self.finished.set()
+            # This runs on the event thread. Double-check the cancel flag, in
+            # case we got canceled while this was queued.
+            if self.cancelled.is_set():
+                return
+            if self.end_time > datetime.datetime.now():
+                # The time has been extended, so wait again.
+                self.start_timer()
+                return
+            self.timer_conn.remove(self)
+            try:
+                self.run()
+            finally:
+                self.finished.set()
         self.timer_conn.on_event(lambda_event.LambdaEvent(run))
         if self.repeat and not self.cancelled.is_set():
+            self.extend(self.interval)
             self.start_timer()
-        else:
-            self.timer_conn.remove(self)
 
     def cancel(self) -> None:
         self.timer.cancel()
         self.timer_conn.remove(self)
         self.cancelled.set()
+
+    def extend(self, extend_interval: datetime.timedelta) -> None:
+        self.end_time += extend_interval
 
     def active(self) -> bool:
         return not self.cancelled.is_set() and not self.finished.is_set()

@@ -24,7 +24,6 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
         self.twitch_conn = twitch_conn
         self.timer_conn = timer_conn
         self.timer: Optional[timer.Timer] = None
-        self.end_time: Optional[datetime.datetime] = None
         self.twitch_util = util
 
     def check(self, event: twitch_event.PointsReward) -> bool:
@@ -44,18 +43,13 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
     def emote_only(self, event: twitch_event.PointsReward) -> str:
         if not self.timer or not self.timer.active():
             self.twitch_conn.command(".emoteonly")
-            self.end_time = datetime.datetime.now() + DURATION
             self.timer = self.timer_conn.start(
                 DURATION, lambda: self.twitch_conn.command(".emoteonlyoff"))
             return (f"{event.user} redeemed emote-only mode for two minutes! "
                     f"valePanic")
         else:
-            self.end_time += DURATION
-            self.timer.cancel()
-            time_left = self.end_time - datetime.datetime.now()
-            self.timer = self.timer_conn.start(
-                time_left,
-                lambda: self.twitch_conn.command(".emoteonlyoff"))
+            self.timer.extend(DURATION)
+            time_left = self.timer.end_time - datetime.datetime.now()
             return (f"{event.user} redeemed emote-only mode for ANOTHER two "
                     f"minutes! {time_left.seconds // 60}:"
                     f"{time_left.seconds % 60:02} left now! valePanic")
