@@ -1,6 +1,9 @@
+import datetime
 from typing import Optional, Set
 
-from impbot.connections import twitch
+import pytz
+
+from impbot.connections import twitch, twitch_webhook
 from impbot.core import base
 from impbot.handlers import command
 from impbot.util import twitch_util
@@ -17,6 +20,7 @@ class OnCallModHandler(command.CommandHandler):
             return (f"@{msg.user} That command is only for our mods to use. "
                     f"valeGiggle But thanks for your interest in modding! Type "
                     f"!m2 for more info.")
+        self.data.set(msg.user.name, today())
         self.twitch_util.irc_command_as_streamer(f".mod {msg.user.name}")
         return f"@{msg.user} vale7"
 
@@ -26,12 +30,39 @@ class OnCallModHandler(command.CommandHandler):
                 return (f"@{msg.user} Sorry pal, you signed a blood oath, "
                         f"that's over my head.")
             return
+        self.data.unset(msg.user.name)
         self.twitch_util.irc_command_as_streamer(f".unmod {msg.user.name}")
         return f"@{msg.user} valeLove"
 
     def run_modsdosomething(self, msg: base.Message) -> Optional[str]:
         if msg.user.name != self.twitch_util.streamer_username.lower():
             return
+        for i in self.on_call_mods:
+            self.data.set(i, today())
         commands = [f".mod {i}" for i in self.on_call_mods]
         self.twitch_util.irc_command_as_streamer(commands)
         return "Mods assemble! vale7"
+
+
+class OnCallModCleanupObserver(
+        base.Observer[twitch_webhook.StreamStartedEvent]):
+    def __init__(self, on_call_mod_handler: OnCallModHandler):
+        super().__init__()
+        self.data = on_call_mod_handler.data
+        self.twitch_util = on_call_mod_handler.twitch_util
+
+    def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
+        commands = []
+        for key, value in self.data.get_all_values().items():
+            if value == today():
+                continue
+            else:
+                commands.append(f".unmod {key}")
+                self.data.unset(key)
+        if commands:
+            self.twitch_util.irc_command_as_streamer(commands)
+
+
+def today():
+    timezone = pytz.timezone("America/Los_Angeles")
+    return str(datetime.datetime.now(tz=timezone).date())
