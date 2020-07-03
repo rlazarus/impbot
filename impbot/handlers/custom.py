@@ -8,7 +8,9 @@ import flask
 from impbot.core import base
 from impbot.core import web
 from impbot.handlers import command
-from impbot.util import cooldown
+from impbot.util import cooldown, discord_log
+
+EMBED_COLOR = 0x0000ff
 
 
 def normalize(command: str) -> str:
@@ -21,8 +23,9 @@ CommandDict = Dict[str, str]
 
 
 class CustomCommandHandler(command.CommandHandler):
-    def __init__(self):
+    def __init__(self, discord: Optional[discord_log.DiscordLogger] = None):
         super().__init__()
+        self.discord = discord
         self.lookup: Optional[Tuple[str, CommandDict]] = None
 
     def check(self, message: base.Message) -> bool:
@@ -104,7 +107,7 @@ class CustomCommandHandler(command.CommandHandler):
             else:
                 return name, result
 
-    def run_addcom(self, name: str, text: str) -> str:
+    def run_addcom(self, message: base.Message, name: str, text: str) -> str:
         name = normalize(name)
         if self.data.exists(name):
             raise base.UserError(f"!{name} already exists.")
@@ -116,14 +119,23 @@ class CustomCommandHandler(command.CommandHandler):
             "cooldowns": repr(cooldown.GlobalAndUserCooldowns(
                 datetime.timedelta(seconds=5), None)),
         })
+        if self.discord:
+            msg = (f"**{message.user}** created the command **!{name}**:\n\n"
+                  f"{text}")
+            self.discord.embed(EMBED_COLOR, msg)
         return f"Added !{name}."
 
-    def run_editcom(self, name: str, text: str) -> str:
+    def run_editcom(self, message: base.Message, name: str, text: str) -> str:
         name = normalize(name)
         lookup = self._lookup(name)
         if lookup:
-            lookup_name, _ = lookup
+            lookup_name, lookup_data = lookup
             self.data.set_subkey(lookup_name, "response", text)
+            if self.discord:
+                msg = (f"**{message.user}** edited the command "
+                       f"**!{lookup_name}**:\n\n{text}")
+                self.discord.embed(EMBED_COLOR, msg,
+                                   {"Old response": lookup_data["response"]})
             if name == lookup_name:
                 return f"Edited !{name}."
             else:
@@ -133,9 +145,13 @@ class CustomCommandHandler(command.CommandHandler):
                 "response": text,
                 "count": "0"
             })
+            if self.discord:
+                msg = (f"**{message.user}** created the command **!{name}**:"
+                       f"\n\n{text}")
+                self.discord.embed(EMBED_COLOR, msg)
             return f"!{name} didn't exist; added it."
 
-    def run_delcom(self, name: str) -> str:
+    def run_delcom(self, message: base.Message, name: str) -> str:
         name = normalize(name)
         try:
             comm = self.data.get_dict(name)
@@ -143,9 +159,19 @@ class CustomCommandHandler(command.CommandHandler):
             raise base.UserError(f"!{name} doesn't exist.")
         self.data.unset(name)
         if "alias" in comm:
-            target = comm['alias']
+            target = comm["alias"]
+            if self.discord:
+                msg = (f"**{message.user}** deleted the command **!{name}** "
+                       f"(alias to **!{target}**).")
+                self.discord.embed(EMBED_COLOR, msg)
             return f"Deleted !{name}. (It was an alias to !{target}.)"
         else:
+            if self.discord:
+                msg = f"**{message.user}** deleted the command **!{name}**."
+                fields = {"Old response": comm["response"]}
+                if "(count)" in comm["response"]:
+                    fields = {"Count": comm["count"]}
+                self.discord.embed(EMBED_COLOR, msg, fields)
             return f"Deleted !{name}."
 
     def run_resetcount(self, name: str, count: Optional[int]) -> str:
@@ -159,7 +185,7 @@ class CustomCommandHandler(command.CommandHandler):
         self.data.set_subkey(name, "count", str(count))
         return f"Reset !{name} counter to {count}."
 
-    def run_aliascom(self, name: str, target: str):
+    def run_aliascom(self, message: base.Message, name: str, target: str):
         name = normalize(name)
         target = normalize(target)
         if self.data.exists(name):
@@ -171,4 +197,8 @@ class CustomCommandHandler(command.CommandHandler):
             raise base.UserError(f"!{target} isn't a custom command.")
         target, _ = lookup
         self.data.set(name, {"alias": target})
+        if self.discord:
+            msg = (f"**{message.user}** created **!{name}** as an alias to "
+                   f"**!{target}**.")
+            self.discord.embed(EMBED_COLOR, msg)
         return f"Added !{name} as an alias to !{target}."
