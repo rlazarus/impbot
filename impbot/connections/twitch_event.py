@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import logging
 import random
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @attr.s(auto_attribs=True)
 class TwitchEvent(base.Event):
-    user: Optional[base.User]  # None for anonymous events.
+    user: Optional[base.User]  # None for anonymous events. TODO: TwitchUser.
 
 
 @attr.s(auto_attribs=True)
@@ -38,7 +39,7 @@ class Subscription(TwitchEvent):
 class GiftSubscription(Subscription):
     # For a TwitchEvent, `username` is always the user who took some action. For
     # a gift, it's the donor, not the new subscriber!
-    recipient_username: str
+    recipient_username: str  # TODO: Switch to TwitchUser.
 
 
 @attr.s(auto_attribs=True)
@@ -48,6 +49,37 @@ class PointsReward(TwitchEvent):
     cost: int
     user_input: Optional[str]  # None if the reward doesn't include any.
     status: str  # "FULFILLED" or "UNFULFILLED"
+
+
+@attr.s(auto_attribs=True)
+class ModAction(TwitchEvent):
+    target: base.User  # TODO: Switch to TwitchUser.
+
+
+@attr.s(auto_attribs=True)
+class Ban(ModAction):
+    reason: str  # "" if the moderator didn't provide one.
+
+
+@attr.s(auto_attribs=True)
+class Unban(ModAction):
+    pass
+
+
+@attr.s(auto_attribs=True)
+class Timeout(ModAction):
+    duration: datetime.timedelta
+    reason: str  # "" if the moderator didn't provide one.
+
+
+@attr.s(auto_attribs=True)
+class Untimeout(ModAction):
+    pass
+
+
+@attr.s(auto_attribs=True)
+class Delete(ModAction):
+    message_text: str
 
 
 class TwitchEventConnection(base.Connection):
@@ -109,8 +141,9 @@ class TwitchEventConnection(base.Connection):
             "data": {
                 "topics": [
                     f"channel-bits-events-v2.{channel_id}",
-                    f"channel-subscribe-events-v1.{channel_id}",
                     f"channel-points-channel-v1.{channel_id}",
+                    f"channel-subscribe-events-v1.{channel_id}",
+                    f"chat_moderator_actions.{channel_id}",
                 ],
                 "auth_token": self.twitch_util.oauth.access_token,
             }
@@ -175,6 +208,31 @@ class TwitchEventConnection(base.Connection):
                 self.reply_conn, user, reward["title"], reward["prompt"],
                 reward["cost"], redemption.get("user_input"),
                 redemption["status"]))
+        elif "_moderator_actions" in topic:
+            mdata = msg["data"]
+            user = base.User(mdata["created_by"])
+            if mdata["moderation_action"] == "ban":
+                [target_username, reason] = mdata["args"]
+                on_event(Ban(self.reply_conn, user, base.User(target_username),
+                             reason))
+            elif mdata["moderation_action"] == "unban":
+                [target_username] = mdata["args"]
+                on_event(Unban(self.reply_conn, user,
+                               base.User(target_username)))
+            elif mdata["moderation_action"] == "timeout":
+                [target_username, duration_sec, reason] = mdata["args"]
+                on_event(Timeout(
+                    self.reply_conn, user, base.User(target_username),
+                    datetime.timedelta(seconds=int(duration_sec)), reason))
+            elif mdata["moderation_action"] == "untimeout":
+                [target_username] = mdata["args"]
+                on_event(Untimeout(self.reply_conn, user,
+                                   base.User(target_username)))
+            elif mdata["moderation_action"] == "delete":
+                [target_username, message_text, message_id] = mdata["args"]
+                on_event(Delete(
+                    self.reply_conn, user, base.User(target_username),
+                    message_text))
 
 
 async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:

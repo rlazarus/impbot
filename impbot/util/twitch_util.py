@@ -46,7 +46,8 @@ class TwitchOAuth:
             "channel_subscriptions",  # For TwitchEventConnection
             "channel_editor",  # For TwitchEditorHandler
             "channel:read:redemptions",  # For TwitchEventConnection
-            # For TwitchUtil.irc_command_as_streamer():
+            # For TwitchUtil.irc_command_as_streamer() and (channel:moderate)
+            # also for TwitchEventConnection:
             "chat:edit", "chat:read", "channel:moderate",
         ]
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
