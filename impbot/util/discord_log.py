@@ -4,8 +4,6 @@ from typing import Optional, Dict, Any
 import requests
 
 import secret
-from impbot.core import base
-from impbot.core.base import EventCallback
 
 logger = logging.getLogger(__name__)
 

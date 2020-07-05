@@ -222,7 +222,7 @@ class TwitchEventBlinkHandler(base.Handler[twitch_event.TwitchEvent]):
         self.hue_client = hue_client
 
     def check(self, event: twitch_event.TwitchEvent) -> bool:
-        return True
+        return not isinstance(event, twitch_event.ModAction)
 
     def run(self, event: twitch_event.TwitchEvent) -> None:
         if self.hue_client.enabled:

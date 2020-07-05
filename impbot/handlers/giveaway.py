@@ -24,19 +24,19 @@ class GiveawayHandler(base.Handler[twitch_event.PointsReward]):
     def run(self, event: twitch_event.PointsReward) -> Optional[str]:
         if datetime.now() > END_TIME:
             if self.error_cooldown.fire():
-                raise base.UserError(f"Sorry @{event.user.display_name}, "
-                                     f"it's too late to enter! NotLikeThis")
+                raise base.UserError(f"Sorry @{event.user}, it's too late to "
+                                     f"enter! NotLikeThis")
             else:
                 return None
         entries = int(self.data.get(event.user.name, default="0"))
         if entries == MAX_ENTRIES:
-            raise base.UserError(f"Sorry @{event.user.display_name}, you "
-                                 f"already have the max {MAX_ENTRIES} entries.")
+            raise base.UserError(f"Sorry @{event.user}, you already have the "
+                                 f"max {MAX_ENTRIES} entries.")
         entries += 1
         self.data.set(event.user.name, str(entries))
         if entries == MAX_ENTRIES:
-            return (f"@{event.user.display_name} You've entered {entries} "
-                    f"times now -- that's the maximum, good luck!")
+            return (f"@{event.user} You've entered {entries} times now -- "
+                    f"that's the maximum, good luck!")
         else:
             return None
 

@@ -2,7 +2,7 @@ import datetime
 
 import pytz
 
-from impbot.connections import twitch_event
+from impbot.connections import twitch_event, twitch
 from impbot.core import base
 from impbot.util import discord_log
 
@@ -51,7 +51,7 @@ class DiscordModLogObserver(base.Observer[twitch_event.ModAction]):
                 f"**{event.user}** deleted **{target}**'s message:\n\n"
                 f"{event.message_text}")
 
-    def viewercard(self, viewer: base.User) -> str:
+    def viewercard(self, viewer: twitch.TwitchUser) -> str:
         return (f"[{viewer}](https://twitch.tv/popout/"
                 f"{self.streamer_username}/viewercard/{viewer.name})")
 

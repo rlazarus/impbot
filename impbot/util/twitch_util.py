@@ -120,6 +120,16 @@ class TwitchUtil:
             raise KeyError(f"No Twitch channel '{streamer_username}'")
         return int(body["data"][0]["id"])
 
+    def get_display_name(self, username: str) -> str:
+        return self._get_display_name(username.lower())
+
+    @functools.lru_cache()
+    def _get_display_name(self, username: str) -> str:
+        body = self.helix_get("users", {"login": username})
+        if not body["data"]:
+            raise KeyError(f"No Twitch user '{username}")
+        return body["data"][0]["display_name"]
+
     def get_stream_data(self, user_id: Optional[int] = None,
                         username: Optional[str] = None) -> StreamData:
         if user_id:
