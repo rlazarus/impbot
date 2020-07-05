@@ -42,7 +42,10 @@ class ObsConnection(base.Connection):
 
     def run(self, on_event: base.EventCallback) -> None:
         self.obsws.set_callback(on_event)
-        self.obsws.connect()
+        try:
+            self.obsws.connect()
+        except base.ShuttingDownError:
+            return
         self.obsws.call(requests.SetHeartbeat(True))
         self.ping_thread.start()
         self.shutdown_event.wait()
@@ -97,6 +100,8 @@ class ReconnectingObsws(obswebsocket.obsws):
 
     def connect(self, host: Optional[str] = None, port: Optional[int] = None):
         while True:
+            if self.shutdown_event.is_set():
+                raise base.ShuttingDownError("")
             try:
                 super().connect(host, port)
                 self.on_event(ObsConnected(None))

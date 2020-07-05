@@ -90,6 +90,11 @@ class ServerError(Exception):
     pass
 
 
+class ShuttingDownError(Exception):
+    """We abandoned something because the bot is in the process of quitting."""
+    pass
+
+
 EventCallback = Callable[[Event], None]
 
 
