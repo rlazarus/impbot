@@ -214,6 +214,10 @@ class TwitchEventConnection(base.Connection):
                 redemption["status"]))
         elif "_moderator_actions" in topic:
             mdata = msg["data"]
+            if (mdata["moderation_action"] not in
+                    {"ban", "unban", "timeout", "untimeout", "delete"}):
+                logger.info(f"Ignoring mod action {mdata['moderation_action']}")
+                return
             user = self.twitch_user(mdata["created_by"], is_moderator=True)
             if mdata["moderation_action"] == "ban":
                 [target_username, reason] = mdata["args"]
