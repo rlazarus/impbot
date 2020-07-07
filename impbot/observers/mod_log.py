@@ -1,4 +1,5 @@
 import datetime
+from typing import Dict, cast, Optional
 
 import pytz
 
@@ -9,29 +10,48 @@ from impbot.util import discord_log
 EMBED_COLOR = 0xffc000
 
 
+class LastMessageObserver(base.Observer[twitch.TwitchMessage]):
+    def __init__(self) -> None:
+        self.last_messages: Dict[twitch.TwitchUser, str] = {}
+
+    def observe(self, event: twitch.TwitchMessage) -> None:
+        user = cast(twitch.TwitchUser, event.user)
+        self.last_messages[user] = event.text
+
+    def get(self, user: twitch.TwitchUser) -> Optional[str]:
+        return self.last_messages.get(user)
+
+
 class DiscordModLogObserver(base.Observer[twitch_event.ModAction]):
     def __init__(self, streamer_username: str,
-                 discord: discord_log.DiscordLogger):
+                 discord: discord_log.DiscordLogger,
+                 last_messages: LastMessageObserver):
         self.streamer_username = streamer_username
         self.discord = discord
+        self.last_messages = last_messages
 
     def observe(self, event: twitch_event.ModAction) -> None:
         target = self.viewercard(event.target)
+        last_message = self.last_messages.get(event.target)
+        fields = {}
+        if isinstance(event, (twitch_event.Ban, twitch_event.Timeout)):
+            if event.reason:
+                fields["Reason"] = event.reason
+            if last_message:
+                fields["Last message"] = last_message
+
         if isinstance(event, twitch_event.Ban):
             self.discord.embed(EMBED_COLOR,
                                f"**{event.user}** banned **{target}**.",
-                               {"Reason": event.reason} if event.reason else {})
+                               fields)
         elif isinstance(event, twitch_event.Unban):
             self.discord.embed(EMBED_COLOR,
                                f"**{event.user}** unbanned **{target}**.")
         elif isinstance(event, twitch_event.Timeout):
-            fields = {}
-            if event.reason:
-                fields["Reason"] = event.reason
             if event.duration.total_seconds() == 1.0:
                 self.discord.embed(
                     EMBED_COLOR,
-                    f"**{event.user}** purged **{target}**'s messages.")
+                    f"**{event.user}** purged **{target}**'s messages.", fields)
             else:
                 duration = humanize(event.duration)
                 exp = expires(event.duration)
