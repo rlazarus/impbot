@@ -173,6 +173,14 @@ class TwitchUtil:
             headers={"Accept": "application/vnd.twitchtv.v5+json"})
         return self._request(request, "OAuth")
 
+    def kraken_put(self, path: str, json: Dict[str, Any] = None) -> Dict:
+        request = requests.Request(
+            method="PUT",
+            url=f"https://api.twitch.tv/kraken/{path}",
+            json=json,
+            headers={"Accept": "application/vnd.twitchtv.v5+json"})
+        return self._request(request, "OAuth")
+
     def _request(self, request, auth_type: str,
                  expected_status: int = 200) -> Dict:
         request.headers["Client-ID"] = secret.TWITCH_CLIENT_ID

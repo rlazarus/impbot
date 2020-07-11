@@ -29,7 +29,10 @@ class TwitchEditorHandler(command.CommandHandler):
             return f"Current title: {current_title}"
         if not (message.user.moderator or message.user.admin):
             raise base.UserError("You can't do that.")
-        self._update_stream(title=title)
+        channel_id = self.twitch_util.get_channel_id(
+            self.twitch_util.streamer_username)
+        self.twitch_util.kraken_put(f"channels/{channel_id}",
+                                    json={"channel": {"status": title}})
         return "Done!"
 
     def run_game(self, message: base.Message, game: Optional[str]):
@@ -44,35 +47,9 @@ class TwitchEditorHandler(command.CommandHandler):
             return f"Current game: {current_game}"
         if not (message.user.moderator or message.user.admin):
             raise base.UserError("You can't do that.")
-        self._update_stream(game=game)
-        return "Done!"
-
-    def _update_stream(self, title: Optional[str] = None,
-                       game: Optional[str] = None) -> None:
-        if not title and not game:
-            raise ValueError("Must pass either title or game.")
-
         channel_id = self.twitch_util.get_channel_id(
             self.twitch_util.streamer_username)
-        url = f"https://api.twitch.tv/kraken/channels/{channel_id}"
-        headers = {
-            "Accept": "application/vnd.twitchtv.v5+json",
-            "Authorization": f"OAuth {self.twitch_util.oauth.access_token}",
-            "Client-ID": secret.TWITCH_CLIENT_ID,
-        }
-        json: Dict[str, Dict[str, str]] = {"channel": {}}
-        if title:
-            json["channel"]["status"] = title
-        if game:
-            json["channel"]["game"] = game
+        self.twitch_util.kraken_put(f"channels/{channel_id}",
+                                    json={"channel": {"game": game}})
 
-        response = requests.put(url, headers=headers, json=json)
-        if response.status_code == 401:
-            self.twitch_util.oauth.refresh()
-            token = self.twitch_util.oauth.access_token
-            headers["Authorization"] = f"OAuth {token}"
-            response = requests.put(url, headers=headers, json=json)
-        if response.status_code == 401:
-            raise base.ServerError(f"401 after refreshing: {response.text}")
-        if response.status_code != 200:
-            raise base.ServerError(f"{response.status_code} {response.text}")
+        return "Done!"
