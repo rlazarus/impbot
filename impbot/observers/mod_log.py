@@ -12,6 +12,7 @@ EMBED_COLOR = 0xffc000
 
 class LastMessageObserver(base.Observer[twitch.TwitchMessage]):
     def __init__(self) -> None:
+        super().__init__()
         self.last_messages: Dict[twitch.TwitchUser, str] = {}
 
     def observe(self, event: twitch.TwitchMessage) -> None:
@@ -26,6 +27,7 @@ class DiscordModLogObserver(base.Observer[twitch_event.ModAction]):
     def __init__(self, streamer_username: str,
                  discord: discord_log.DiscordLogger,
                  last_messages: LastMessageObserver):
+        super().__init__()
         self.streamer_username = streamer_username
         self.discord = discord
         self.last_messages = last_messages

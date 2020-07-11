@@ -209,6 +209,10 @@ class Observer(Module, abc.ABC, EventGeneric[E], generic_method="observe"):
                 "Type annotation for observe() parameter must be Event or a "
                 "subclass.")
 
+    def __init__(self) -> None:
+        self.data = data.Namespace(
+            f"{type(self).__module__}.{type(self).__name__}")
+
     @abc.abstractmethod
     def observe(self, event: E) -> None:
         pass
