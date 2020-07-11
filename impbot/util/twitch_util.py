@@ -64,8 +64,9 @@ class TwitchOAuth:
         logger.info("Twitch OAuth: Authorized!")
 
     def refresh(self) -> None:
-        self._fetch({"grant_type": "refresh_token",
-                     "refresh_token": self.data.get("refresh_token")})
+        with self.lock:  # Hold the lock between the DB read and writes.
+            self._fetch({"grant_type": "refresh_token",
+                         "refresh_token": self.data.get("refresh_token")})
         logger.info("Twitch OAuth: Refreshed!")
 
     @property

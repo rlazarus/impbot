@@ -1,4 +1,5 @@
 import datetime
+import threading
 from typing import cast
 
 from impbot.connections import twitch
@@ -20,7 +21,13 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
         try:
             seen_name = self.data.get(event.user_id)
         except KeyError:
-            self.new_user(event.user_id, user)
+            self.data.set(event.user_id, user.name)
+            # Spin off the young-account alert into a new thread, to avoid
+            # blocking the rest of this message handling, since we have to call
+            # out to the Twitch API for it.
+            threading.Thread(name=f"ModInsightsObserver-new_user {user.name}",
+                             target=self.new_user,
+                             args=(event.user_id, user)).start()
             return
         if seen_name != user.name:
             self.discord.embed(EMBED_COLOR,
@@ -29,7 +36,6 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
             self.data.set(event.user_id, user.name)
 
     def new_user(self, user_id: int, user: twitch.TwitchUser):
-        self.data.set(user_id, user.name)
         age = self.account_age(user_id)
         if age < datetime.timedelta(minutes=1):
             self.discord.embed(
