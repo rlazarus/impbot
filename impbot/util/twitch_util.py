@@ -153,33 +153,38 @@ class TwitchUtil:
         request = requests.Request(
             method="GET",
             url=f"https://api.twitch.tv/helix/{path}",
-            params=params,
-            headers={
-                "Authorization": f"Bearer {self.oauth.access_token}",
-                "Client-ID": secret.TWITCH_CLIENT_ID
-            })
-        return self._helix_request(request, expected_status=expected_status)
+            params=params)
+        return self._request(request, "Bearer", expected_status=expected_status)
 
     def helix_post(self, path: str, json: Dict[str, Any],
                    expected_status: int = 200) -> Dict:
         request = requests.Request(
             method="POST",
             url=f"https://api.twitch.tv/helix/{path}",
-            json=json,
-            headers={
-                "Authorization": f"Bearer {self.oauth.access_token}",
-                "Client-ID": secret.TWITCH_CLIENT_ID
-            }
-        )
-        return self._helix_request(request, expected_status=expected_status)
+            json=json)
+        return self._request(request, "Bearer", expected_status=expected_status)
 
-    def _helix_request(self, request, expected_status: int = 200) -> Dict:
+    def kraken_get(self, path: str,
+                   params: Optional[Dict[str, Any]] = None) -> Dict:
+        request = requests.Request(
+            method="GET",
+            url=f"https://api.twitch.tv/kraken/{path}",
+            params=params,
+            headers={"Accept": "application/vnd.twitchtv.v5+json"})
+        return self._request(request, "OAuth")
+
+    def _request(self, request, auth_type: str,
+                 expected_status: int = 200) -> Dict:
+        request.headers["Client-ID"] = secret.TWITCH_CLIENT_ID
+        if auth_type:
+            request.headers.update(
+                {"Authorization": f"{auth_type} {self.oauth.access_token}"})
         with requests.Session() as s:
             response = s.send(request.prepare())
-        if response.status_code == 401:
+        if response.status_code == 401 and auth_type:
             self.oauth.refresh()
             request.headers.update(
-                {"Authorization": f"Bearer {self.oauth.access_token}"})
+                {"Authorization": f"{auth_type} {self.oauth.access_token}"})
             with requests.Session() as s:
                 response = s.send(request.prepare())
         if response.status_code != expected_status:
