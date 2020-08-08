@@ -107,3 +107,12 @@ def expires(duration: datetime.timedelta) -> str:
     if duration < datetime.timedelta(days=365):
         return f"{exptime:%B %d, %I:%M %p} PT"
     return f"{exptime:%B %d, %Y %I:%M %p} PT"
+
+
+def module_group(streamer_username: str,
+                 discord_logger: discord_log.DiscordLogger) -> base.ModuleGroup:
+    last_message = LastMessageObserver()
+    return [
+        last_message,
+        DiscordModLogObserver(streamer_username, discord_logger, last_message),
+    ]

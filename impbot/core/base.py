@@ -106,6 +106,12 @@ class Module:
     url_rules: ClassVar[List["web.UrlRule"]] = []
 
 
+# The Bot constructor takes a heterogeneous list of Modules and lists of
+# Modules, for convenience when Module constructors are interdependent.
+# ModuleGroup is a simple alias for a List[Module] with those semantics.
+ModuleGroup = List[Module]
+
+
 class Connection(Module, abc.ABC):
     @abc.abstractmethod
     def run(self, on_event: EventCallback) -> None:

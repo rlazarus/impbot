@@ -66,3 +66,9 @@ class OnCallModCleanupObserver(
 def today():
     timezone = pytz.timezone("America/Los_Angeles")
     return str(datetime.datetime.now(tz=timezone).date())
+
+
+def module_group(util: twitch_util.TwitchUtil,
+                 on_call_mods: Set[str]) -> base.ModuleGroup:
+    handler = OnCallModHandler(util, on_call_mods)
+    return [handler, OnCallModCleanupObserver(handler)]

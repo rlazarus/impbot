@@ -113,3 +113,10 @@ class ValePointsCleanupObserver(
                 self.data.unset(key)
         if commands:
             self.twitch_util.irc_command_as_streamer(commands)
+
+
+def module_group(twitch_conn: twitch.TwitchChatConnection,
+                 timer_conn: timer.TimerConnection,
+                 util: twitch_util.TwitchUtil) -> base.ModuleGroup:
+    points_handler = ValePointsHandler(twitch_conn, timer_conn, util)
+    return [points_handler, ValePointsCleanupObserver(points_handler)]

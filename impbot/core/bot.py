@@ -44,7 +44,7 @@ class Shutdown(base.Event):
 
 class Bot:
     def __init__(self, db: Optional[str],
-                 modules: List[Union[base.Module, List[base.Module]]]) -> None:
+                 modules: List[Union[base.Module, base.ModuleGroup]]) -> None:
         modules = _flatten(modules)
 
         connections = []
