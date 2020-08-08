@@ -28,13 +28,20 @@ def init_logging(path: str) -> None:
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setFormatter(formatter)
+    stdout_handler.setLevel(logging.INFO)
     root_logger.addHandler(stdout_handler)
 
     os.makedirs(path, exist_ok=True)
-    path = os.path.join(path, "impbot.log")
-    file_handler = handlers.TimedRotatingFileHandler(path, "midnight")
+    info_path = os.path.join(path, "impbot.log")
+    file_handler = handlers.TimedRotatingFileHandler(info_path, "midnight")
     file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
+
+    debug_path = os.path.join(path, "impbot-debug.log")
+    debug_handler = handlers.TimedRotatingFileHandler(debug_path, "midnight")
+    debug_handler.setFormatter(formatter)
+    root_logger.addHandler(debug_handler)
 
 
 @attr.s
