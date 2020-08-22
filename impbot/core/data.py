@@ -156,10 +156,22 @@ class Namespace(object):
                 raise KeyError(key)
         return key_id
 
-    def unset(self, key: str) -> None:
-        with self.conn:
-            self.conn.execute("DELETE FROM keys WHERE namespace=? AND key=?",
-                              (self.namespace, key))
+    def unset(self, key: str, subkey: Optional[str] = None) -> None:
+        if subkey is not None:
+            with self.conn:
+                try:
+                    key_id = self._find_key(self.conn, key, subkeys=True,
+                                            create=False)
+                except KeyError:
+                    return
+                self.conn.execute(
+                    "DELETE FROM key_subkey_values WHERE key_id=? AND subkey=?",
+                    (key_id, subkey))
+        else:
+            with self.conn:
+                self.conn.execute(
+                    "DELETE FROM keys WHERE namespace=? AND key=?",
+                    (self.namespace, key))
 
     def exists(self, key: str, subkey: Optional[str] = None) -> bool:
         if subkey is not None:

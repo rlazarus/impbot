@@ -69,6 +69,8 @@ class DataTest(tests_util.DataHandlerTest):
         self.assertEqual(data.get("key", "a"), "able")
         self.assertEqual(data.get("key", "e"), "easy")
         self.assertFalse(data.exists("key", "b"))
+        data.unset("key", "e")
+        self.assertFalse(data.exists("key", "e"))
 
     def test_empty_dict(self):
         data = FooHandler().data
