@@ -1,7 +1,7 @@
 import datetime
 import logging
 import sys
-from typing import Optional, Set, List
+from typing import Optional, Set, List, cast, Tuple
 
 import attr
 from irc import client
@@ -23,6 +23,7 @@ class TwitchUser(base.User):
     # The streamer doesn't have a mod badge, but they have a superset of
     # mod privileges, so this is true for them too.
     is_moderator: Optional[bool] = attr.ib(cmp=False, default=None)
+    is_subscriber: Optional[bool] = attr.ib(cmp=False, default=None)
     badges: Optional[Set[str]] = attr.ib(cmp=False, default=None)
 
     @property
@@ -40,6 +41,8 @@ class TwitchMessage(base.Message):
     # Twitch's msg-id tag for NOTICE. (https://dev.twitch.tv/docs/irc/msg-id)
     msg_id: Optional[str]
     user_id: int
+    action: bool  # True if the message was a CTCP ACTION (/me).
+    emotes: List[Tuple[int, int, int]]  # Emote ID, start index, end index
 
 
 class TwitchChatConnection(irc_conn.IrcConnection):
@@ -64,9 +67,24 @@ class TwitchChatConnection(irc_conn.IrcConnection):
         display_name = tags.get("display-name", event.source.nick)
         admin = "broadcaster" in badges or event.source.nick in self.admins
         moderator = "broadcaster" in badges or "moderator" in badges
-        user = TwitchUser(event.source.nick, admin, display_name, moderator)
+        subscriber = "subscriber" in badges
+        user = TwitchUser(event.source.nick, admin, display_name, moderator,
+                          subscriber)
+        emotes = []
+        for entry in tags.get("emotes", "").split("/"):
+            emote_id, positions = entry.split(":")
+            for position in positions.split(","):
+                start, end = position.split("-")
+                emotes.append((int(emote_id), int(start), int(end)))
+
         return TwitchMessage(self, user, event.arguments[0], tags.get("id", ""),
-                             tags.get("msg-id"), int(tags.get("user-id")))
+                             tags.get("msg-id"), int(tags.get("user-id")),
+                             False, emotes)
+
+    def _action(self, event: client.Event) -> base.Message:
+        message = cast(TwitchMessage, self._message(event))
+        message.action = True
+        return message
 
     def say(self, text: str) -> None:
         # Twitch commands are sent as PRIVMSGs that start with "/" or "." We
@@ -108,19 +126,3 @@ class TwitchChatConnection(irc_conn.IrcConnection):
         self.command(f".delete {message.id}")
         if reply:
             self.say(reply)
-
-
-if __name__ == "__main__":
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-    root_logger.addHandler(logging.StreamHandler(sys.stdout))
-
-    modules = [
-        TwitchChatConnection("BotAltBTW", secret.BOTALTBTW_OAUTH, "Shrdluuu",
-                             []),
-        custom.CustomCommandHandler(),
-        hello.HelloHandler(),
-        roulette.RouletteHandler(),
-    ]
-    b = bot.Bot("impbot.sqlite", modules)
-    b.main()

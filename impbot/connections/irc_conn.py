@@ -31,6 +31,7 @@ class IrcConnection(base.ChatConnection):
         self.reactor = client.Reactor()
         self.reactor.add_global_handler("welcome", self.on_welcome)
         self.reactor.add_global_handler("pubmsg", self.on_pubmsg)
+        self.reactor.add_global_handler("action", self.on_action)
         self.reactor.add_global_handler("ping", self.on_ping)
 
     # bot.Connection overrides:
@@ -84,6 +85,10 @@ class IrcConnection(base.ChatConnection):
                   event: client.Event) -> None:
         self.on_event(self._message(event))
 
+    def on_action(self, _: client.ServerConnection,
+                  event: client.Event) -> None:
+        self.on_event(self._action(event))
+
     def on_ping(self, _conn: client.ServerConnection,
                 _event: client.Event) -> None:
         self.last_ping = datetime.datetime.now()
@@ -93,3 +98,7 @@ class IrcConnection(base.ChatConnection):
     def _message(self, event: client.Event) -> base.Message:
         user = base.User(event.source.nick)
         return base.Message(self, user, event.arguments[0])
+
+    def _action(self, event: client.Event) -> base.Message:
+        # By default, actions look just like messages with the same text.
+        return self._message(event)
