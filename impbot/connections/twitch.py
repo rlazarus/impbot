@@ -42,7 +42,7 @@ class TwitchMessage(base.Message):
     msg_id: Optional[str]
     user_id: int
     action: bool  # True if the message was a CTCP ACTION (/me).
-    emotes: List[Tuple[int, int, int]]  # Emote ID, start index, end index
+    emotes: List[Tuple[str, int, int]]  # Emote ID, start index, end index
 
 
 class TwitchChatConnection(irc_conn.IrcConnection):
@@ -71,11 +71,13 @@ class TwitchChatConnection(irc_conn.IrcConnection):
         user = TwitchUser(event.source.nick, admin, display_name, moderator,
                           subscriber)
         emotes = []
-        for entry in tags.get("emotes", "").split("/"):
-            emote_id, positions = entry.split(":")
-            for position in positions.split(","):
-                start, end = position.split("-")
-                emotes.append((int(emote_id), int(start), int(end)))
+        emotes_tag = tags.get("emotes", "")
+        if emotes_tag:
+            for entry in emotes_tag.split("/"):
+                emote_id, positions = entry.split(":")
+                for position in positions.split(","):
+                    start, end = position.split("-")
+                    emotes.append((emote_id, int(start), int(end)))
 
         return TwitchMessage(self, user, event.arguments[0], tags.get("id", ""),
                              tags.get("msg-id"), int(tags.get("user-id")),
