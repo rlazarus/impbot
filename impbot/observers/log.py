@@ -1,6 +1,9 @@
 import logging
 from typing import cast, Optional
 
+from obswebsocket import events
+
+from impbot.connections import obs
 from impbot.core import base
 
 default_logger = logging.getLogger(__name__)
@@ -12,6 +15,12 @@ class LoggingObserver(base.Observer[base.Event]):
         self.logger = logger if logger else default_logger
 
     def observe(self, event: base.Event) -> None:
+        if isinstance(event, obs.ObsMessage):
+            event = cast(obs.ObsMessage, event)
+            if isinstance(event.obs_message, (events.StreamStatus,
+                                              events.Heartbeat)):
+                # Skip these, they're too noisy.
+                return
         if isinstance(event, base.Message):
             event = cast(base.Message, event)
             connection = type(event.reply_connection).__name__
