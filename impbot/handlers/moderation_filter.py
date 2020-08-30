@@ -47,8 +47,8 @@ class PermitHandler(command.CommandHandler):
         if not message.user.moderator:
             return
         if username.startswith("@"):
-            username = username[:1]
-        user = twitch.TwitchUser(username)
+            username = username[1:]
+        user = twitch.TwitchUser(username.lower(), display_name=username)
         if user in self.link_allowed_users:
             return (f"@{message.user} That's okay, {user} is always allowed to "
                     f"post links.")
@@ -78,7 +78,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
     def __init__(self, permit_handler: PermitHandler, allowed_urls: Set[str]):
         super().__init__()
         self.permit_handler = permit_handler
-        self.allowed_urls = allowed_urls
+        self.allowed_urls = {url.lower() for url in allowed_urls}
         self.action: Optional[Literal["delete", "timeout"]] = None
         self.duration: Optional[datetime.timedelta] = None
         self.reply: Optional[str] = None
@@ -143,7 +143,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
                     _ = socket.inet_pton(socket.AF_INET6, match.group(2))
             except OSError:
                 continue
-            url = match.group()
+            url = match.group().lower()
             if not any(allowed in url for allowed in self.allowed_urls):
                 return True
         return False

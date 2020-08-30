@@ -79,6 +79,7 @@ class ModerationFilterHandlerTest(tests_util.DataHandlerTest):
         self.assert_allowed("shapedlikealink.butwithoutavalidtld")
         self.assert_allowed("alinkexample.combutwithoutspacesaroundit")
         self.assert_allowed("allowedurl.fyi")
+        self.assert_allowed("ALLOWEDURL.FYI")
 
         self.assert_allowed("1.2.3")
         self.assert_timeout("post a link", 180, "1.2.3.4")
@@ -140,3 +141,27 @@ class ModerationFilterHandlerTest(tests_util.DataHandlerTest):
         self.assert_allowed("A" * 50, user=sub)
         self.assert_allowed("!" * 50, user=sub)
         self.assert_allowed("o" * 50, user=sub)
+
+    def test_case_insensitive_permit(self):
+        self.assert_timeout("post a link", 15, "https://pcpartpicker.com/list/VpB96R")
+        mod = twitch.TwitchUser("mod", display_name="Mod", is_moderator=True)
+        self.assertTrue(
+            self.permit_handler.check(self.message("!permit User", mod)))
+        self.assertEqual(
+            self.permit_handler.run(self.message("!permit User", mod)),
+            "User is now permitted to post a link in the next 45 seconds.")
+        self.assert_allowed("a")
+        self.assert_allowed("https://pcpartpicker.com/list/VpB96R")
+
+    def test_permit_with_at_sign(self):
+        self.assert_timeout("post a link", 15,
+                            "https://pcpartpicker.com/list/VpB96R")
+        mod = twitch.TwitchUser("mod", display_name="Mod",
+                                is_moderator=True)
+        self.assertTrue(
+            self.permit_handler.check(self.message("!permit @user", mod)))
+        self.assertEqual(
+            self.permit_handler.run(self.message("!permit @user", mod)),
+            "user is now permitted to post a link in the next 45 seconds.")
+        self.assert_allowed("a")
+        self.assert_allowed("https://pcpartpicker.com/list/VpB96R")
