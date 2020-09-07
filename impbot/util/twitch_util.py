@@ -1,3 +1,4 @@
+import datetime
 import functools
 import logging
 import random
@@ -13,6 +14,7 @@ from mypy_extensions import TypedDict
 import secret
 from impbot.core import base
 from impbot.core import data
+from impbot.util import cooldown
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +111,8 @@ class TwitchUtil:
     def __init__(self, oauth: TwitchOAuth):
         self.oauth = oauth
         self.streamer_username = oauth.streamer_username
+        self._cached_sub_count: Optional[int] = None
+        self._sub_count_ttl = cooldown.Cooldown(datetime.timedelta(minutes=5))
 
     def get_channel_id(self, streamer_username: str) -> int:
         # Canonicalize the username to share a cache entry.
@@ -148,6 +152,15 @@ class TwitchUtil:
         if not body["data"]:
             raise base.ServerError(f"No Game with ID {game_id}")
         return body["data"][0]["name"]
+
+    def sub_count(self) -> int:
+        if not self._sub_count_ttl.fire():
+            return self._cached_sub_count
+        id = self.get_channel_id(self.streamer_username)
+        response = self.kraken_get(f"channels/{id}/subscriptions",
+                                  params={"limit": 1})
+        self._cached_sub_count = response['_total']
+        return response['_total']
 
     def helix_get(self, path: str, params: Dict[str, Any],
                   expected_status: int = 200) -> Dict:

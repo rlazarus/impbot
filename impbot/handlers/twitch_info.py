@@ -77,6 +77,9 @@ class TwitchInfoHandler(command.CommandHandler):
         game = self.twitch_util.game_name(data["game_id"])
         return f"{self.streamer_username} is streaming {game}."
 
+    def run_subcount(self) -> str:
+        return f"There are {self.twitch_util.sub_count():,} subscribers."
+
     def run_title(self):
         streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
         data = self.twitch_util.get_stream_data(streamer_id)
