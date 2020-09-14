@@ -66,6 +66,10 @@ class Timer:
                 self.run()
             finally:
                 self.finished.set()
+
+        # This runs on the timer thread, so it isn't delayed by running the
+        # actual lambda. Enqueue the lambda, then immediately repeat if
+        # appropriate.
         self.timer_conn.on_event(lambda_event.LambdaEvent(run))
         if self.repeat and not self.cancelled.is_set():
             self.extend(self.interval)
