@@ -53,7 +53,11 @@ class MuteHandler(base.Handler[obs.ObsEvent]):
     def run(self, event: obs.ObsEvent) -> None:
         if isinstance(event, ObsConnected):
             scene = self.obsws.call(requests.GetCurrentScene())
-            for s in scene.getSources():
+            try:
+                sources = scene.getSources()
+            except KeyError:
+                sources = []
+            for s in sources:
                 if s["name"] in self.mutable_scene_items:
                     self.mutable_items_visible[s["name"]] = s["render"]
             # Any item not in the current scene, we'll consider not visible.
