@@ -1,10 +1,7 @@
+import logging
 import threading
 
-from impbot.core import bot
 from impbot.core import base
-from impbot.handlers import custom
-from impbot.handlers import hello
-from impbot.handlers import roulette
 
 
 class StdioConnection(base.ChatConnection):
@@ -19,18 +16,8 @@ class StdioConnection(base.ChatConnection):
         # canceled and then getting another line from the user.
         while not self._canceled.is_set():
             m = base.Message(self, base.User("stdin"), input("> "))
+            logging.info(m)
             on_event(m)
 
     def shutdown(self) -> None:
         self._canceled.set()
-
-
-if __name__ == "__main__":
-    modules = [
-        StdioConnection(),
-        custom.CustomCommandHandler(),
-        hello.HelloHandler(),
-        roulette.RouletteHandler(),
-    ]
-    b = bot.Bot("impbot.sqlite", modules)
-    b.main()

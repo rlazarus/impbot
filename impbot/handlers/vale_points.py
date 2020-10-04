@@ -43,7 +43,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
     def emote_only(self, event: twitch_event.PointsReward) -> str:
         if not self.timer or not self.timer.active():
             self.twitch_conn.command(".emoteonly")
-            self.timer = self.timer_conn.start(
+            self.timer = self.timer_conn.start_once(
                 DURATION, lambda: self.twitch_conn.command(".emoteonlyoff"))
             return (f"{event.user} redeemed emote-only mode for two minutes! "
                     f"valePanic")

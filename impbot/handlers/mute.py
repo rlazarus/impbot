@@ -100,7 +100,7 @@ class MuteHandler(base.Handler[obs.ObsEvent]):
             logger.info("Timer already started.")
             return
         logger.info("Timer starting!")
-        self.timer = self.timer_conn.start(INTERVAL, self.alert_now)
+        self.timer = self.timer_conn.start_once(INTERVAL, self.alert_now)
 
     def cancel_timer(self) -> None:
         if not (self.timer and self.timer.active()):

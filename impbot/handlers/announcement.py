@@ -1,4 +1,5 @@
 import datetime
+import logging
 import threading
 from typing import Optional
 
@@ -8,6 +9,8 @@ from impbot.handlers import command
 from impbot.util import twitch_util
 
 INTERVAL = datetime.timedelta(hours=2)
+
+logger = logging.getLogger(__name__)
 
 
 class AnnouncementHandler(command.CommandHandler):
@@ -38,15 +41,20 @@ class AnnouncementHandler(command.CommandHandler):
         wait = last_announce_time + INTERVAL - datetime.datetime.now()
 
         def run():
+            logger.info("### Timer!")
             self.announce()
-            self.timer_conn.start(INTERVAL, self.announce, repeat=True)
+            self.timer_conn.start_repeating(INTERVAL, self.announce)
 
         threading.Timer(wait.total_seconds(), run).start()
 
     def announce(self):
         data = self.util.get_stream_data(username=self.util.streamer_username)
+        logger.info(f"### Data: {data}")
         if data != twitch_util.OFFLINE:
+            logger.info(f"### Online, announcing! {self.data.get('announcement')}")
             self.chat.say(self.data.get("announcement", default=""))
+        else:
+            logger.info("### Offline, not announcing.")
         self.data.set("last_announce", str(datetime.datetime.utcnow()))
 
     def run_setannouncement(self, message: base.Message,

@@ -1,5 +1,6 @@
 import datetime
 import threading
+from abc import ABCMeta, abstractmethod
 from typing import Callable, List, Optional
 
 from impbot.core import base
@@ -22,34 +23,64 @@ class TimerConnection(base.Connection):
         for timer in self.timers:
             timer.cancel()
 
-    def start(self, interval: datetime.timedelta, run: Callable[[], None],
-              repeat: bool = False) -> "Timer":
-        timer = Timer(self, interval, run, repeat)
+    def start_once(self, interval: datetime.timedelta,
+                   run: Callable[[], None]) -> "SingleTimer":
+        timer = SingleTimer(self, interval, run)
+        self.timers.append(timer)
+        return timer
+
+    def start_repeating(self, interval: datetime.timedelta,
+                        run: Callable[[], None]) -> "RepeatingTimer":
+        timer = RepeatingTimer(self, interval, run)
         self.timers.append(timer)
         return timer
 
     def remove(self, timer: "Timer") -> None:
-        self.timers.remove(timer)
+        try:
+            self.timers.remove(timer)
+        except ValueError:
+            # Very occasionally, a timer gets double-removed due to a race
+            # condition. That's actually fine, so eating the ValueError here
+            # makes remove() idempotent.
+            pass
 
 
-class Timer:
+class Timer(metaclass=ABCMeta):
+
     def __init__(self, timer_conn: TimerConnection,
-                 interval: datetime.timedelta, run: Callable[[], None],
-                 repeat: bool = False):
+                 interval: datetime.timedelta, run: Callable[[], None]):
         self.run = run
-        self.repeat = repeat
         self.timer_conn = timer_conn
-        self.interval = interval  # Used to extend, when repeat == True.
         self.end_time = datetime.datetime.now() + interval
         self.timer: Optional[threading.Timer] = None
         self.cancelled = threading.Event()
-        self.finished = threading.Event()
-        self.start_timer()
 
     def start_timer(self) -> None:
         interval = (self.end_time - datetime.datetime.now()).total_seconds()
         self.timer = threading.Timer(interval, self.run_as_lambda)
         self.timer.start()
+
+    def cancel(self) -> None:
+        self.timer.cancel()
+        self.timer_conn.remove(self)
+        self.cancelled.set()
+
+    @abstractmethod
+    def run_as_lambda(self):
+        pass
+
+    @abstractmethod
+    def active(self):
+        pass
+
+
+class SingleTimer(Timer):
+
+    def __init__(self, timer_conn: TimerConnection,
+                 interval: datetime.timedelta, run: Callable[[], None]):
+        super().__init__(timer_conn, interval, run)
+        self.finished = threading.Event()
+        self.start_timer()
 
     def run_as_lambda(self) -> None:
         def run() -> None:
@@ -67,21 +98,37 @@ class Timer:
             finally:
                 self.finished.set()
 
-        # This runs on the timer thread, so it isn't delayed by running the
-        # actual lambda. Enqueue the lambda, then immediately repeat if
-        # appropriate.
         self.timer_conn.on_event(lambda_event.LambdaEvent(run))
-        if self.repeat and not self.cancelled.is_set():
-            self.extend(self.interval)
-            self.start_timer()
-
-    def cancel(self) -> None:
-        self.timer.cancel()
-        self.timer_conn.remove(self)
-        self.cancelled.set()
 
     def extend(self, extend_interval: datetime.timedelta) -> None:
         self.end_time += extend_interval
 
     def active(self) -> bool:
         return not self.cancelled.is_set() and not self.finished.is_set()
+
+
+class RepeatingTimer(Timer):
+    def __init__(self, timer_conn: TimerConnection,
+                 interval: datetime.timedelta, run: Callable[[], None]):
+        super().__init__(timer_conn, interval, run)
+        self.interval = interval
+        self.start_timer()
+
+    def run_as_lambda(self) -> None:
+        def run() -> None:
+            # This runs on the event thread. Double-check the cancel flag, in
+            # case we got canceled while this was queued.
+            if self.cancelled.is_set():
+                return
+            self.run()
+
+        # This runs on the timer thread, so it isn't delayed by running the
+        # actual lambda. Enqueue the lambda, then immediately repeat if
+        # appropriate.
+        self.timer_conn.on_event(lambda_event.LambdaEvent(run))
+        if not self.cancelled.is_set():
+            self.end_time += self.interval
+            self.start_timer()
+
+    def active(self) -> bool:
+        return not self.cancelled.is_set()
