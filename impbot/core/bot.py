@@ -27,7 +27,10 @@ def init_logging(path: str) -> None:
     formatter.default_msec_format = "%s.%03d"
 
     stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(formatter)
+    # Skip the timestamps on stdout, since we normally run as a systemd unit and
+    # journalctl adds timestamps of its own.
+    stdout_handler.setFormatter(logging.Formatter(
+        fmt="{name} {filename}:{lineno} {levelname}: {message}", style="{"))
     stdout_handler.setLevel(logging.INFO)
     root_logger.addHandler(stdout_handler)
 
