@@ -4,7 +4,7 @@ import logging
 import random
 import string
 import threading
-from typing import Dict, Union, Optional, List, Any
+from typing import Dict, Union, Optional, List, Any, Set, Tuple, Iterable
 from urllib import parse
 
 import requests
@@ -113,17 +113,36 @@ class TwitchUtil:
         self.streamer_username = oauth.streamer_username
         self._cached_sub_count: Optional[int] = None
         self._sub_count_ttl = cooldown.Cooldown(datetime.timedelta(minutes=5))
+        self._channel_id_cache: Dict[str, int] = {}
 
     def get_channel_id(self, streamer_username: str) -> int:
-        # Canonicalize the username to share a cache entry.
-        return self._get_channel_id(streamer_username.lower())
-
-    @functools.lru_cache()
-    def _get_channel_id(self, streamer_username: str) -> int:
-        body = self.helix_get("users", {"login": streamer_username})
-        if not body["data"]:
+        result = self.get_channel_ids([streamer_username])
+        if not result:
             raise KeyError(f"No Twitch channel '{streamer_username}'")
-        return int(body["data"][0]["id"])
+        return list(result)[0]
+
+    def get_channel_ids(self, streamer_usernames: Iterable[str]) -> Set[int]:
+        streamer_usernames = list(streamer_usernames)
+        result = set()
+        to_fetch: List[str] = []
+        # First, grab any that we already have from cache.
+        for name in streamer_usernames:
+            name = name.lower()
+            try:
+                result.add(self._channel_id_cache[name])
+            except KeyError:
+                to_fetch.append(name)
+        # Break the list up into multiple requests, asking for at most 100 names
+        # at a time (per the API docs).
+        for i in range(0, len(to_fetch), 100):
+            body = self.helix_get(
+                "users", [("login", name) for name in to_fetch[i:i+100]])
+            # We *don't* check that all names are present -- if any of the input
+            # names were bogus, then the output will be smaller than the input.
+            for user in body["data"]:
+                result.add(int(user["id"]))
+                self._channel_id_cache[user["login"]] = int(user["id"])
+        return result
 
     def get_display_name(self, username: str) -> str:
         return self._get_display_name(username.lower())
@@ -158,11 +177,12 @@ class TwitchUtil:
             return self._cached_sub_count
         id = self.get_channel_id(self.streamer_username)
         response = self.kraken_get(f"channels/{id}/subscriptions",
-                                  params={"limit": 1})
+                                   params={"limit": 1})
         self._cached_sub_count = response['_total']
         return response['_total']
 
-    def helix_get(self, path: str, params: Dict[str, Any],
+    def helix_get(self, path: str,
+                  params: Union[Dict[str, Any], List[Tuple[str, Any]]],
                   expected_status: int = 200) -> Dict:
         request = requests.Request(
             method="GET",

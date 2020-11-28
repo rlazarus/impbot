@@ -137,6 +137,8 @@ class Namespace(object):
 
     def increment_subkeys(self, key: str, subkeys: Iterable[str],
                           delta: int = 1) -> None:
+        if not subkeys:
+            return
         with self.conn:
             key_id = self._find_key(self.conn, key, subkeys=True, create=True)
 

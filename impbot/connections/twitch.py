@@ -1,18 +1,15 @@
 import datetime
+import itertools
 import logging
-import sys
-from typing import Optional, Set, List, cast, Tuple
+from typing import Optional, Set, List, cast, Tuple, Iterable
 
 import attr
+import requests
 from irc import client
 
-from impbot.core import bot
 from impbot.core import base
-from impbot.handlers import custom
-from impbot.handlers import hello
-from impbot.handlers import roulette
 from impbot.connections import irc_conn
-import secret
+from impbot.util import twitch_util
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +44,16 @@ class TwitchMessage(base.Message):
 
 class TwitchChatConnection(irc_conn.IrcConnection):
     def __init__(self, bot_username: str, oauth_token: str,
-                 streamer_username: str, admins: List[str]) -> None:
+                 util: twitch_util.TwitchUtil, admins: List[str]) -> None:
         if not oauth_token.startswith("oauth:"):
             oauth_token = "oauth:" + oauth_token
         super().__init__("irc.chat.twitch.tv", 6667, bot_username.lower(),
-                         "#" + streamer_username.lower(), password=oauth_token,
+                         "#" + util.streamer_username.lower(),
+                         password=oauth_token,
                          capabilities=["twitch.tv/tags", "twitch.tv/commands"])
+        self.twitch_util = util
         self.admins = admins
+        self.reactor.add_global_handler("reconnect", self.on_reconnect)
 
     def _message(self, event: client.Event) -> base.Message:
         tags = {i['key']: i['value'] for i in event.tags}
@@ -128,3 +128,19 @@ class TwitchChatConnection(irc_conn.IrcConnection):
         self.command(f".delete {message.id}")
         if reply:
             self.say(reply)
+
+    def all_chatters(self) -> Iterable[str]:
+        # TODO: Cache this with a short TTL.
+        name = self.twitch_util.streamer_username.lower()
+        try:
+            response = requests.get(
+                f"https://tmi.twitch.tv/group/user/{name}/chatters")
+            response.raise_for_status()
+        except requests.RequestException as e:
+            # TODO: Retry, once we're properly doing this off the event thread.
+            # Log this and bail, but don't raise ServerError, so that we try
+            # again the next time the timer fires.
+            logger.exception("Failed to get chatter list from TMI")
+            return []
+        data = response.json()
+        return itertools.chain.from_iterable(data["chatters"].values())
