@@ -72,6 +72,18 @@ class DataTest(tests_util.DataHandlerTest):
         data.unset("key", "e")
         self.assertFalse(data.exists("key", "e"))
 
+    def test_increment(self):
+        data = FooHandler().data
+        data.set_subkey("key", "a", "10")
+        data.increment_subkeys("key", ["a", "b"])
+        self.assertEqual(data.get_dict("key"), {"a": "11", "b": "1"})
+        data.increment_subkeys("key", ["b", "c"])
+        self.assertEqual(data.get_dict("key"), {"a": "11", "b": "2", "c": "1"})
+        data.unset("key")
+        self.assertFalse(data.exists("key", "a"))
+        data.increment_subkeys("key", ["a", "b"], "100")
+        self.assertEqual(data.get_dict("key"), {"a": "100", "b": "100"})
+
     def test_empty_dict(self):
         data = FooHandler().data
         self.assertFalse(data.exists("key"))

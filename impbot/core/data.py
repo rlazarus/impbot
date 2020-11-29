@@ -1,8 +1,9 @@
+import itertools
 import logging
 import sqlite3
 import sys
 import threading
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Iterable
 
 logger = logging.getLogger(__name__)
 _db: Optional[str] = None
@@ -133,6 +134,29 @@ class Namespace(object):
                     self.conn.execute(
                         "INSERT INTO key_subkey_values VALUES (?,?,?)",
                         (key_id, subkey, subvalue))
+
+    def increment_subkeys(self, key: str, subkeys: Iterable[str],
+                          delta: int = 1) -> None:
+        with self.conn:
+            key_id = self._find_key(self.conn, key, subkeys=True, create=True)
+
+            # First insert any missing subkeys, starting them at zero...
+            qmarks = ",".join("(?, ?, 0)" for _ in subkeys)
+            values = tuple(
+                itertools.chain.from_iterable((key_id, i) for i in subkeys))
+            self.conn.execute(
+                f"INSERT OR IGNORE INTO key_subkey_values VALUES {qmarks}",
+                values)
+
+            # ... then increment all subkeys, since all are present. (Values are
+            # strings, but sqlite lets us add strings like integers, when their
+            # values are number-shaped. CAUTION: This overwrites the original
+            # value if it wasn't a number.)
+            qmarks = ",".join("?" for _ in subkeys)
+            self.conn.execute(
+                "UPDATE key_subkey_values SET value = value + ? "
+                f"WHERE key_id=? AND subkey IN ({qmarks})",
+                (delta, key_id) + tuple(subkeys))
 
     def _find_key(self, conn: sqlite3.Connection, key: str, subkeys: bool,
                   create: bool) -> int:
