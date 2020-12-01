@@ -182,16 +182,15 @@ class TwitchEventConnection(base.Connection):
         msg = json.loads(body["data"]["message"])
         if "-bits-" in topic:
             mdata = msg["data"]
-            user = (self.twitch_user(mdata["user_name"]) if "user_name" in mdata
-                    else None)
+            username = mdata.get("user_name", None)
+            user = self.twitch_user(username) if username else None
             on_event(
                 Bits(self.reply_conn, user, mdata["bits_used"],
                      mdata["chat_message"]))
         elif "-subscribe-" in topic:
             if "recipient_user_name" in msg:
-                user = (
-                    self.twitch_user(msg["user_name"]) if "user_name" in msg
-                    else None)
+                username = msg.get("user_name", None)
+                user = self.twitch_user(username) if username else None
                 on_event(GiftSubscription(
                     self.reply_conn, user, SUB_PLANS[msg["sub_plan"]],
                     msg["months"], None, msg["sub_message"]["message"],
