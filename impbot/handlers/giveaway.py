@@ -1,57 +1,64 @@
-import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import timedelta
+from typing import Optional, cast
 
-from impbot.connections import twitch_event
+import flask
+
+from impbot.connections import twitch
 from impbot.core import base, web
+from impbot.handlers import command
 from impbot.util import cooldown
 
-logger = logging.getLogger(__name__)
 
-MAX_ENTRIES = 10
-END_TIME = datetime(2020, 1, 16, 2)
-
-
-class GiveawayHandler(base.Handler[twitch_event.PointsReward]):
+class CommandGiveawayHandler(command.CommandHandler):
 
     def __init__(self) -> None:
         super().__init__()
-        self.error_cooldown = cooldown.Cooldown(timedelta(seconds=30))
+        self.error_cooldown = cooldown.Cooldown(timedelta(seconds=10))
 
-    def check(self, event: twitch_event.PointsReward) -> bool:
-        return "giveaway" in event.reward_title.lower()
-
-    def run(self, event: twitch_event.PointsReward) -> Optional[str]:
-        if datetime.now() > END_TIME:
+    def run_enter(self, message: base.Message) -> Optional[str]:
+        if self.data.exists("_ended"):
             if self.error_cooldown.fire():
-                raise base.UserError(f"Sorry @{event.user}, it's too late to "
+                raise base.UserError(f"Sorry @{message.user}, it's too late to "
                                      f"enter! NotLikeThis")
             else:
                 return None
-        entries = int(self.data.get(event.user.name, default="0"))
-        if entries == MAX_ENTRIES:
-            raise base.UserError(f"Sorry @{event.user}, you already have the "
-                                 f"max {MAX_ENTRIES} entries.")
-        entries += 1
-        self.data.set(event.user.name, str(entries))
-        if entries == MAX_ENTRIES:
-            return (f"@{event.user} You've entered {entries} times now -- "
-                    f"that's the maximum, good luck!")
+        if self.data.exists(message.user.name):
+            raise base.UserError(f"@{message.user} Don't worry, you're "
+                                 f"already entered.")
+        self.data.set(message.user.name,
+                      cast(twitch.TwitchUser, message.user).display_name)
+        return f"@{message.user} You've entered the giveaway, good luck!"
+
+    def run_unenter(self, message: base.Message, target: Optional[str]) -> Optional[str]:
+        if target:
+            target = target.lower()
+            authorized = message.user.moderator or message.user.admin
+            if target != message.user.name and not authorized:
+                return
         else:
-            return None
+            target = message.user.name
+
+        if not self.data.exists(target):
+            if target == message.user.name:
+                return None
+            else:
+                return f"@{message.user} {target} isn't in the giveaway."
+
+        self.data.unset(target)
+        if target == message.user.name:
+            return f"Okay @{message.user}, you're out of the giveaway."
+        else:
+            return f"Removed {target} from the giveaway."
+
+    def run_endgiveaway(self, message: base.Message) -> Optional[str]:
+        if not (message.user.moderator or message.user.admin):
+            return
+        self.data.set("_ended", 1)
+        return "No more entries! vale7"
 
     @web.url("/giveaway")
-    def _get_all_entries(self) -> str:
-        items = self.data.get_all_values().items()
-        if not items:
-            return "No entries yet."
-        entries = []
-        for key, value in items:
-            entries.extend([key] * int(value))
-        entries.sort()
-        return "<br>".join(f"{i + 1}. {name}" for i, name in enumerate(entries))
-
-    @web.url("/giveaway/clear", methods=["POST"])
-    def _clear_all_entries(self) -> str:
-        self.data.clear_all()
-        return "Done."
+    def web(self) -> str:
+        data = self.data.get_all_values()
+        data.pop("_ended", None)
+        values = sorted(data.values(), key=str.casefold)
+        return flask.render_template("giveaway.html", entries=values)
