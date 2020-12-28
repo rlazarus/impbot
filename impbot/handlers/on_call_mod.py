@@ -38,7 +38,7 @@ class OnCallModHandler(command.CommandHandler):
         if msg.user.name != self.twitch_util.streamer_username.lower():
             return
         for i in self.on_call_mods:
-            self.data.set(i, today())
+            self.data.set(i.name, today())
         commands = [f".mod {i}" for i in self.on_call_mods]
         self.twitch_util.irc_command_as_streamer(commands)
         return "Mods assemble! vale7"
