@@ -91,29 +91,29 @@ class TimeHandler(command.CommandHandler):
         return (f"{name_has} spent {human_duration(seconds)} in the "
                 f"chat{event_time}.")
 
-    def run_startevent(self, user: twitch.TwitchUser,
-                       name: str) -> Optional[str]:
-        if not user.admin:
+    def run_startevent(self, message: base.Message, name: str) -> Optional[str]:
+        if not message.user.admin:
             return
         try:
             existing_name = self.data.get("event_name")
-            raise base.UserError(f"@{user} I'm already tracking watch time for "
-                                 f"the {existing_name} event.")
+            raise base.UserError(f"@{message.user} I'm already tracking watch "
+                                 f"time for the {existing_name} event.")
         except KeyError:
             self.data.set("event_name", name)
-            return f"@{user} Tracking watch time for the {name} event!"
+            return f"@{message.user} Tracking watch time for the {name} event!"
 
-    def run_endevent(self, user: twitch.TwitchUser) -> Optional[str]:
-        if not user.admin:
+    def run_endevent(self, message: base.Message) -> Optional[str]:
+        if not message.user.admin:
             return
         try:
             name = self.data.get("event_name")
         except KeyError:
-            raise base.UserError(f"@{user} I'm not tracking watch time for an "
-                                 f"event.")
+            raise base.UserError(
+                f"@{message.user} I'm not tracking watch time for an event.")
         else:
             self.data.unset("event_name")
-            return f"@{user} Stopped tracking watch time for the {name} event."
+            return (f"@{message.user} Stopped tracking watch time for the "
+                    f"{name} event.")
 
 
 def human_duration(seconds: int):
