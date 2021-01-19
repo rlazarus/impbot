@@ -66,8 +66,13 @@ class TimeHandler(command.CommandHandler):
         seconds = int(self.data.get("total_time", str(id), default="0"))
         if (not seconds and not self.mod_insights_data.exists(str(id)) and
                 who.lower() not in self.chat.all_chatters()):
-            who = self.twitch_util.get_display_name(who)
-            return f"{who} hasn't been in the chat."
+            if who == message.user.name:
+                return (f"@{message.user} Uh, it says here you've never been "
+                        f"in the chat, but that can't be right, because here "
+                        f"you are... valeS")
+            else:
+                who = self.twitch_util.get_display_name(who)
+                return f"{who} hasn't been in the chat."
 
         event = self.data.get("event_name", default="")
         if event:
