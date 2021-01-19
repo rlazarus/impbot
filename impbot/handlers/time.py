@@ -78,8 +78,11 @@ class TimeHandler(command.CommandHandler):
         if event:
             event_seconds = int(
                 self.data.get("event_time", str(id), default="0"))
-            event_time = (f" ({human_duration(event_seconds)} during the "
-                          f"{event} event)")
+            if event_seconds == seconds:
+                event_time = f" (all during the {event} event)"
+            else:
+                event_time = (f" ({human_duration(event_seconds)} during the "
+                              f"{event} event)")
         else:
             event_time = ""
 
