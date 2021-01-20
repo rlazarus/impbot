@@ -75,8 +75,12 @@ class PermitHandler(command.CommandHandler):
 
 
 class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
-    def __init__(self, permit_handler: PermitHandler, allowed_urls: Set[str]):
+    def __init__(
+            self, banned_words: re.Pattern, banned_words_msg: str, permit_handler: PermitHandler,
+            allowed_urls: Set[str]):
         super().__init__()
+        self.banned_words = banned_words
+        self.banned_words_msg = banned_words_msg
         self.permit_handler = permit_handler
         self.allowed_urls = {url.lower() for url in allowed_urls}
         self.action: Optional[Literal["delete", "timeout"]] = None
@@ -99,6 +103,15 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
                 self.reply = (f"@{user} If you want to post a link, ask a mod "
                               f"to permit you!")
                 return True
+
+        if self.banned_words.search(message.text):
+            if self.warning(user):
+                self.action = "timeout"
+                self.duration = datetime.timedelta(minutes=3)
+            else:
+                self.action = "delete"
+            self.reply = f"@{user} {self.banned_words_msg}"
+            return True
 
         if user.is_subscriber:
             return False
@@ -124,7 +137,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
             self.action = "delete"
             self.reply = f"@{user} Too many symbols."
             return True
-        if REPEATING_PATTERN.match(message.text):
+        if REPEATING_PATTERN.search(message.text):
             self.action = "delete"
             self.reply = f"@{user} Too many repeating characters."
             return True
@@ -171,10 +184,11 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
 
 
 def module_group(
-        allowed_urls: Set[str],
+        banned_words: re.Pattern, banned_words_msg: str, allowed_urls: Set[str],
         link_allowed_users: Set[twitch.TwitchUser]) -> base.ModuleGroup:
     permit_handler = PermitHandler(link_allowed_users)
     # The mod filter comes first, because otherwise non-mods could type
     # "!permit link.com" and get ignored.
-    return [ModerationFilterHandler(permit_handler, allowed_urls),
+    return [ModerationFilterHandler(
+                banned_words, banned_words_msg, permit_handler, allowed_urls),
             permit_handler]

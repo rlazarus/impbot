@@ -1,4 +1,5 @@
 import datetime
+import re
 from typing import List, Tuple
 from unittest import mock
 
@@ -13,7 +14,7 @@ class ModerationFilterHandlerTest(tests_util.DataHandlerTest):
     def setUp(self):
         super().setUp()
         handlers = moderation_filter.module_group(
-            {"allowedurl.fyi"}, {twitch.TwitchUser("alloweduser")})
+            re.compile('$nomatch'), '', {'allowedurl.fyi'}, {twitch.TwitchUser('alloweduser')})
         self.mod_handler, self.permit_handler = handlers
         self.conn = mock.Mock()
 
