@@ -57,7 +57,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
     def vip(self, event: twitch_event.PointsReward) -> str:
         if self.data.exists(event.user.name):
             return f"@{event.user} What, again? valeThink"
-        self.twitch_util.irc_command_as_streamer(f".vip {event.user}")
+        self.twitch_util.vip(event.user.name)
         stream_data = self.twitch_util.get_stream_data(
             username=self.twitch_util.streamer_username)
         if stream_data != OFFLINE:
@@ -102,17 +102,17 @@ class ValePointsCleanupObserver(
     def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
         timezone = pytz.timezone("America/Los_Angeles")
         today = str(datetime.datetime.now(tz=timezone).date())
-        commands = []
+        usernames = []
         for key, value in self.data.get_all_values().items():
             if value == REDEEMED_BETWEEN_STREAMS:
                 self.data.set(key, today)
             elif value == today:
                 continue
             else:
-                commands.append(f".unvip {key}")
+                usernames.append(key)
                 self.data.unset(key)
-        if commands:
-            self.twitch_util.irc_command_as_streamer(commands)
+        if usernames:
+            self.twitch_util.unvip(usernames)
 
 
 def module_group(twitch_conn: twitch.TwitchChatConnection,

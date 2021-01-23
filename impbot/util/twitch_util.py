@@ -48,7 +48,7 @@ class TwitchOAuth:
             "channel_subscriptions",  # For TwitchEventConnection
             "channel_editor",  # For TwitchEditorHandler
             "channel:read:redemptions",  # For TwitchEventConnection
-            # For TwitchUtil.irc_command_as_streamer() and (channel:moderate)
+            # For TwitchUtil._irc_command_as_streamer() and (channel:moderate)
             # also for TwitchEventConnection:
             "chat:edit", "chat:read", "channel:moderate",
         ]
@@ -239,7 +239,27 @@ class TwitchUtil:
             return {}
         return response.json()
 
-    def irc_command_as_streamer(self, commands: Union[str, List[str]]):
+    def mod(self, usernames: Union[str, List[str]]) -> None:
+        if isinstance(usernames, str):
+            usernames = [usernames]
+        self._irc_command_as_streamer([f'.mod {name}' for name in usernames])
+
+    def unmod(self, usernames: Union[str, List[str]]) -> None:
+        if isinstance(usernames, str):
+            usernames = [usernames]
+        self._irc_command_as_streamer([f'.unmod {name}' for name in usernames])
+
+    def vip(self, usernames: Union[str, List[str]]) -> None:
+        if isinstance(usernames, str):
+            usernames = [usernames]
+        self._irc_command_as_streamer([f'.vip {name}' for name in usernames])
+
+    def unvip(self, usernames: Union[str, List[str]]) -> None:
+        if isinstance(usernames, str):
+            usernames = [usernames]
+        self._irc_command_as_streamer([f'.unvip {name}' for name in usernames])
+
+    def _irc_command_as_streamer(self, commands: Union[str, List[str]]):
         if isinstance(commands, str):
             commands = [commands]
 

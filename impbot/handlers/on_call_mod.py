@@ -21,7 +21,7 @@ class OnCallModHandler(command.CommandHandler):
                     f"valeGiggle But thanks for your interest in modding! Type "
                     f"!m2 for more info.")
         self.data.set(msg.user.name, today())
-        self.twitch_util.irc_command_as_streamer(f".mod {msg.user.name}")
+        self.twitch_util.mod(msg.user.name)
         return f"@{msg.user} vale7"
 
     def run_unmodme(self, msg: base.Message) -> Optional[str]:
@@ -31,7 +31,7 @@ class OnCallModHandler(command.CommandHandler):
                         f"that's over my head.")
             return
         self.data.unset(msg.user.name)
-        self.twitch_util.irc_command_as_streamer(f".unmod {msg.user.name}")
+        self.twitch_util.unmod(msg.user.name)
         return f"@{msg.user} valeLove"
 
     def run_modsdosomething(self, msg: base.Message) -> Optional[str]:
@@ -39,8 +39,7 @@ class OnCallModHandler(command.CommandHandler):
             return
         for i in self.on_call_mods:
             self.data.set(i.name, today())
-        commands = [f".mod {i}" for i in self.on_call_mods]
-        self.twitch_util.irc_command_as_streamer(commands)
+        self.twitch_util.mod([user.name for user in self.on_call_mods])
         return "Mods assemble! vale7"
 
 
@@ -52,15 +51,15 @@ class OnCallModCleanupObserver(
         self.twitch_util = on_call_mod_handler.twitch_util
 
     def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
-        commands = []
+        usernames = []
         for key, value in self.data.get_all_values().items():
             if value == today():
                 continue
             else:
-                commands.append(f".unmod {key}")
+                usernames.append(key)
                 self.data.unset(key)
-        if commands:
-            self.twitch_util.irc_command_as_streamer(commands)
+        if usernames:
+            self.twitch_util.unmod(usernames)
 
 
 def today():
