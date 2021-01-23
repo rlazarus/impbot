@@ -1,10 +1,12 @@
 import datetime
 import functools
 import logging
+import queue
 import random
 import string
 import threading
-from typing import Dict, Union, Optional, List, Any, Set, Tuple, Iterable
+from typing import Dict, Union, Optional, List, Any, Set, Tuple, Iterable, \
+    Container
 from urllib import parse
 
 import requests
@@ -242,33 +244,54 @@ class TwitchUtil:
     def mod(self, usernames: Union[str, List[str]]) -> None:
         if isinstance(usernames, str):
             usernames = [usernames]
-        self._irc_command_as_streamer([f'.mod {name}' for name in usernames])
+        self._irc_command_as_streamer(
+            [f".mod {name}" for name in usernames], "mod_success",
+            {"bad_mod_banned", "bad_mod_mod"})
 
     def unmod(self, usernames: Union[str, List[str]]) -> None:
         if isinstance(usernames, str):
             usernames = [usernames]
-        self._irc_command_as_streamer([f'.unmod {name}' for name in usernames])
+        self._irc_command_as_streamer(
+            [f".unmod {name}" for name in usernames], "unmod_success",
+            {"bad_unmod_mod"})
 
     def vip(self, usernames: Union[str, List[str]]) -> None:
         if isinstance(usernames, str):
             usernames = [usernames]
-        self._irc_command_as_streamer([f'.vip {name}' for name in usernames])
+        self._irc_command_as_streamer(
+            [f".vip {name}" for name in usernames], "vip_success",
+            {"bad_vip_grantee_banned", "bad_vip_grantee_already_vip",
+             "bad_vip_achievement_incomplete"})
 
     def unvip(self, usernames: Union[str, List[str]]) -> None:
         if isinstance(usernames, str):
             usernames = [usernames]
-        self._irc_command_as_streamer([f'.unvip {name}' for name in usernames])
+        self._irc_command_as_streamer(
+            [f".unvip {name}" for name in usernames], "unvip_success",
+            {"bad_unvip_grantee_not_vip"})
 
-    def _irc_command_as_streamer(self, commands: Union[str, List[str]]):
+    def _irc_command_as_streamer(
+            self, commands: Union[str, List[str]], success_msg: str,
+            failure_msgs: Container[str]) -> None:
         if isinstance(commands, str):
             commands = [commands]
 
         channel = "#" + self.oauth.streamer_username.lower()
+        pubnotices = queue.Queue()
+        welcome = threading.Event()
 
-        def on_welcome(connection: client.ServerConnection, _: client.Event):
-            for command in commands:
-                connection.privmsg(channel, command)
-            connection.disconnect()
+        def on_welcome(_c: client.ServerConnection, _e: client.Event) -> None:
+            welcome.set()
+
+        def on_pubnotice(
+                _: client.ServerConnection, event: client.Event) -> None:
+            msg_ids = [i["value"] for i in event.tags if i["key"] == "msg-id"]
+            if not msg_ids:
+                return
+            if len(msg_ids) > 1:
+                logger.error("Multiple msg-id tags: %s", event)
+                # ... but continue anyway, and just use the first one.
+            pubnotices.put(msg_ids[0])
 
         self.oauth.refresh()
         reactor = client.Reactor()
@@ -276,8 +299,43 @@ class TwitchUtil:
             "irc.chat.twitch.tv", 6667, self.oauth.streamer_username.lower(),
             password=f"oauth:{self.oauth.access_token}")
         connection.add_global_handler("welcome", on_welcome)
-        while connection.is_connected():
-            reactor.process_once(0.2)
+        connection.add_global_handler("pubnotice", on_pubnotice)
+        reactor.process_once(timeout=10)
+        if not welcome.wait(timeout=10):
+            connection.disconnect()
+            raise base.ServerError("WELCOME not received.")
+        connection.cap("REQ", "twitch.tv/commands", "twitch.tv/tags")
+        connection.cap("END")
+        reactor.process_once(timeout=10)
+        for command in commands:
+            connection.privmsg(channel, command)
+            result = ""
+            unknown_msgs = []
+            deadline = (datetime.datetime.utcnow() +
+                        datetime.timedelta(seconds=10))
+            while result == "" and datetime.datetime.utcnow() < deadline:
+                timeout = deadline - datetime.datetime.utcnow()
+                reactor.process_once(timeout=timeout.total_seconds())
+                while True:
+                    try:
+                        msg = pubnotices.get_nowait()
+                    except queue.Empty:
+                        break
+                    if ((msg == success_msg or msg in failure_msgs) and
+                            result == ""):
+                        result = msg
+                    else:
+                        unknown_msgs.append(msg)
+            if result == success_msg:
+                logger.info("%s: success", command)
+            elif result:
+                logger.error("%s: %s", command, result)
+            elif unknown_msgs:
+                logger.error("%s: No response. Unknown pubnotices: %s",
+                              command, unknown_msgs)
+            else:
+                logger.error("%s: No response.")
+        connection.disconnect()
 
 
 def nonce() -> str:
