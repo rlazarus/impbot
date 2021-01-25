@@ -272,7 +272,7 @@ class TwitchUtil:
 
     def _irc_command_as_streamer(
             self, commands: Union[str, List[str]], success_msg: str,
-            failure_msgs: Container[str]) -> None:
+            failure_msgs: Container[str], retry_on_error: bool = True) -> None:
         if isinstance(commands, str):
             commands = [commands]
 
@@ -300,13 +300,18 @@ class TwitchUtil:
             password=f"oauth:{self.oauth.access_token}")
         connection.add_global_handler("welcome", on_welcome)
         connection.add_global_handler("pubnotice", on_pubnotice)
-        reactor.process_once(timeout=10)
-        if not welcome.wait(timeout=10):
+        reactor.process_once(timeout=5)
+        if not welcome.wait(timeout=5):
             connection.disconnect()
-            raise base.ServerError("WELCOME not received.")
+            if retry_on_error:
+                self._irc_command_as_streamer(
+                    commands, success_msg, failure_msgs, retry_on_error=False)
+                return
+            else:
+                raise base.ServerError("WELCOME not received.")
         connection.cap("REQ", "twitch.tv/commands", "twitch.tv/tags")
         connection.cap("END")
-        reactor.process_once(timeout=10)
+        reactor.process_once(timeout=5)
         for command in commands:
             connection.privmsg(channel, command)
             result = ""
@@ -330,11 +335,18 @@ class TwitchUtil:
                 logger.info("%s: success", command)
             elif result:
                 logger.error("%s: %s", command, result)
-            elif unknown_msgs:
-                logger.error("%s: No response. Unknown pubnotices: %s",
-                              command, unknown_msgs)
             else:
-                logger.error("%s: No response.")
+                if unknown_msgs:
+                    logger.error("%s: No response. Unknown pubnotices: %s",
+                                  command, unknown_msgs)
+                else:
+                    logger.error("%s: No response.")
+                if retry_on_error:
+                    connection.disconnect()
+                    self._irc_command_as_streamer(
+                        commands, success_msg, failure_msgs,
+                        retry_on_error=False)
+                    return
         connection.disconnect()
 
 
