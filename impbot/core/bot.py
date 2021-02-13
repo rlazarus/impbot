@@ -3,6 +3,7 @@ import os
 import queue
 import sys
 import threading
+import time
 from logging import handlers
 from typing import Optional, Dict, Sequence, List, Any, Union, TypeVar
 
@@ -175,6 +176,8 @@ class Bot:
             self._handler_thread.join()
         except KeyboardInterrupt:
             logger.info("Exiting...")
+            threading.Thread(name="log_running_threads",
+                             target=log_running_threads, daemon=True).start()
             self._queue.put(Shutdown())
             self._handler_thread.join()
 
@@ -200,3 +203,16 @@ def _flatten(input: List[Union[T, List[T]]]) -> List[T]:
         else:
             output.append(i)
     return output
+
+
+def log_running_threads() -> None:
+    # If we can't exit, list the threads that are holding us open. *This* thread
+    # runs as a daemon, so it won't block the exit itself.
+    last = ""
+    while True:
+        time.sleep(10)
+        threads = ",".join(f"{thread.name}" for thread in threading.enumerate()
+                           if not thread.daemon)
+        if threads != last:
+            logger.error("Still running nondaemon threads: %s", threads)
+            last = threads
