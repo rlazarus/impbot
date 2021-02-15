@@ -1,5 +1,7 @@
-import datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
+
+import dateutil.parser
 
 from impbot.core import base
 from impbot.handlers import command
@@ -40,24 +42,24 @@ class TwitchInfoHandler(command.CommandHandler):
             name_has = f"{data['from_name']} has"
 
         since_str = data["followed_at"]
-        since = datetime.date.fromisoformat(since_str[:len("YYYY-MM-DD")])
-        if (datetime.date.today() - since) < datetime.timedelta(days=365):
-            date = since.strftime("%B %d").replace(" 0", " ")
+        since = date.fromisoformat(since_str[:len("YYYY-MM-DD")])
+        if (date.today() - since) < timedelta(days=365):
+            since_str = since.strftime("%B %d").replace(" 0", " ")
         else:
-            date = since.strftime("%B %d, %Y").replace(" 0", " ")
+            since_str = since.strftime("%B %d, %Y").replace(" 0", " ")
 
-        if since == datetime.date.today():
+        if since == date.today():
             duration = "today"
-        elif since == datetime.date.today() - datetime.timedelta(days=1):
+        elif since == date.today() - timedelta(days=1):
             duration = "yesterday"
-        elif since < datetime.date.today():
-            days = (datetime.date.today() - since).days
+        elif since < date.today():
+            days = (date.today() - since).days
             duration = f"{days:,} days ago"
         else:
             duration = "the future??"
 
         return (f"{name_has} been following {self.streamer_username} since "
-                f"{date} ({duration}).")
+                f"{since_str} ({duration}).")
 
     def run_followers(self):
         return self.run_follows()
@@ -92,8 +94,8 @@ class TwitchInfoHandler(command.CommandHandler):
         data = self.twitch_util.get_stream_data(streamer_id)
         if data == twitch_util.OFFLINE:
             return f"{self.streamer_username} is offline."
-        started_at = datetime.datetime.fromisoformat(data["started_at"][:-1])
-        uptime = datetime.datetime.utcnow() - started_at
+        started_at = dateutil.parser.isoparse(data["started_at"])
+        uptime = datetime.now(timezone.utc) - started_at
         hours = uptime.seconds // 3600
         minutes = (uptime.seconds % 3600) // 60
         if hours == 0:

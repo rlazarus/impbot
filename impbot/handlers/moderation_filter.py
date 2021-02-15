@@ -1,9 +1,10 @@
-import datetime
+from datetime import datetime, timedelta, timezone
 import re
 import socket
 import string
 from typing import Optional, cast, Literal, Set
 
+import dateutil.parser
 import pytz
 import requests
 
@@ -38,6 +39,7 @@ LINK_PATTERN = re.compile(
     re.IGNORECASE)
 
 
+
 class PermitHandler(command.CommandHandler):
     def __init__(self, link_allowed_users: Set[twitch.TwitchUser]) -> None:
         super().__init__()
@@ -55,7 +57,7 @@ class PermitHandler(command.CommandHandler):
         if self.is_permitted(user):
             # We must've already done this just now -- treat it like a cooldown.
             return
-        now = datetime.datetime.utcnow()
+        now = datetime.now(timezone.utc)
         self.data.set_subkey("permitted", user.name, str(now))
         return f"{user} is now permitted to post a link in the next 45 seconds."
 
@@ -64,9 +66,9 @@ class PermitHandler(command.CommandHandler):
             return True
         try:
             permitted = self.data.get("permitted", user.name)
-            permission_time = datetime.datetime.fromisoformat(permitted)
-            permission_age = datetime.datetime.utcnow() - permission_time
-            return permission_age < datetime.timedelta(seconds=45)
+            permission_time = dateutil.parser.isoparse(permitted)
+            permission_age = datetime.now(timezone.utc) - permission_time
+            return permission_age < timedelta(seconds=45)
         except KeyError:
             return False
 
@@ -84,7 +86,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
         self.permit_handler = permit_handler
         self.allowed_urls = {url.lower() for url in allowed_urls}
         self.action: Optional[Literal["delete", "timeout"]] = None
-        self.duration: Optional[datetime.timedelta] = None
+        self.duration: Optional[timedelta] = None
         self.reply: Optional[str] = None
 
     def check(self, message: twitch.TwitchMessage) -> bool:
@@ -97,9 +99,9 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
             else:
                 self.action = "timeout"
                 if self.warning(user):
-                    self.duration = datetime.timedelta(minutes=3)
+                    self.duration = timedelta(minutes=3)
                 else:
-                    self.duration = datetime.timedelta(seconds=15)
+                    self.duration = timedelta(seconds=15)
                 self.reply = (f"@{user} If you want to post a link, ask a mod "
                               f"to permit you!")
                 return True
@@ -107,7 +109,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
         if self.banned_words.search(message.text):
             if self.warning(user):
                 self.action = "timeout"
-                self.duration = datetime.timedelta(minutes=3)
+                self.duration = timedelta(minutes=3)
             else:
                 self.action = "delete"
             self.reply = f"@{user} {self.banned_words_msg}"
@@ -164,8 +166,8 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
     def warning(self, user: twitch.TwitchUser) -> bool:
         # Warnings reset at midnight. We use midnight Pacific Time, since it's
         # more likely to fall between streams than midnight UTC.
-        timezone = pytz.timezone("America/Los_Angeles")
-        today = str(datetime.datetime.now(tz=timezone).date())
+        pacific = pytz.timezone("America/Los_Angeles")
+        today = str(datetime.now(tz=pacific).date())
         if self.data.get("warning", user.name, default="") == today:
             return True
         self.data.set_subkey("warning", user.name, today)

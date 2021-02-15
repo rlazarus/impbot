@@ -1,6 +1,8 @@
-import datetime
+from datetime import datetime, timedelta, timezone
 import threading
 from typing import cast
+
+import dateutil.parser
 
 from impbot.connections import twitch
 from impbot.core import base
@@ -37,17 +39,17 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
 
     def new_user(self, user_id: int, user: twitch.TwitchUser):
         age = self.account_age(user_id)
-        if age < datetime.timedelta(minutes=1):
+        if age < timedelta(minutes=1):
             self.discord.embed(
                 EMBED_COLOR,
                 f"🔎 **{self.viewercard(user)}** created their account "
                 f"less than a minute ago.")
-        elif age < datetime.timedelta(minutes=2):
+        elif age < timedelta(minutes=2):
             self.discord.embed(
                 EMBED_COLOR,
                 f"🔎 **{self.viewercard(user)}** created their account 1 "
                 f"minute ago.")
-        elif age < datetime.timedelta(hours=1):
+        elif age < timedelta(hours=1):
             self.discord.embed(
                 EMBED_COLOR,
                 f"🔎 **{self.viewercard(user)}** created their account "
@@ -59,7 +61,7 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
                 f"{self.twitch_util.streamer_username}/viewercard/"
                 f"{viewer.name})")
 
-    def account_age(self, user_id: int) -> datetime.timedelta:
+    def account_age(self, user_id: int) -> timedelta:
         response = self.twitch_util.kraken_get(f"users/{user_id}")
-        created = datetime.datetime.fromisoformat(response["created_at"][:-1])
-        return datetime.datetime.utcnow() - created
+        created = dateutil.parser.isoparse(response["created_at"])
+        return datetime.now(timezone.utc) - created
