@@ -5,4 +5,4 @@ irc==17.0
 mock==2.0.0
 mypy-extensions==0.4.1
 requests==2.20.0
-websockets==7.0
+websockets==9.1
