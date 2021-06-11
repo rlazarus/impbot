@@ -8,4 +8,4 @@ obs-websocket-py==0.5.1
 python-dateutil==2.8.1
 pytz==2019.3
 requests==2.20.0
-websockets==8.1
+websockets==9.1
