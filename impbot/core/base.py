@@ -177,7 +177,8 @@ class Handler(Module, abc.ABC, EventGeneric[E], generic_method="check"):
         if cls._event_type() == inspect.Parameter.empty:
             raise TypeError(
                 "Type annotation for check() and run() parameter is required.")
-        if not issubclass(cls._event_type(), Event):
+        if (not isinstance(cls._event_type(), type) or
+                not issubclass(cls._event_type(), Event)):
             raise TypeError(
                 "Type annotation for check() and run() parameter must be Event "
                 "or a subclass.")
