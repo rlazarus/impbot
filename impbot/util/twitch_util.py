@@ -9,12 +9,13 @@ from typing import Dict, Union, Optional, List, Any, Set, Tuple, Iterable, \
     Container
 from urllib import parse
 
+import flask
 import requests
 from irc import client
 from mypy_extensions import TypedDict
 
 import secret
-from impbot.core import base
+from impbot.core import base, web
 from impbot.core import data
 from impbot.util import cooldown
 
@@ -26,6 +27,8 @@ class TwitchOAuth:
         self.streamer_username = streamer_username
         self.data = data.Namespace("impbot.util.twitch_util.TwitchOAuth")
         self.lock = threading.Lock()
+        self.auth_finished = threading.Event()
+        self.state = nonce()
 
     def maybe_authorize(self) -> None:
         """
@@ -37,9 +40,6 @@ class TwitchOAuth:
                 self.authorize()
 
     def authorize(self) -> None:
-        # TODO: Now that there's a web server built in, do the server side of
-        #   this authorization flow properly, rather than fishing it out of
-        #   HTTP logs and entering it by hand.
         # TODO: Better yet, set up a persistent web service shared by all Impbot
         #   installations -- that service should be the host for the OAuth
         #   redirect URI, and should hold the Twitch client secret. Until then,
@@ -57,15 +57,24 @@ class TwitchOAuth:
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,
                                   "response_type": "code",
-                                  "scope": " ".join(scopes)})
-        access_code = input(
-            f"While logged into Twitch as {self.streamer_username}, please "
-            f"visit: https://id.twitch.tv/oauth2/authorize?{params}\n"
-            f"Access code: ")
-        self._fetch({"grant_type": "authorization_code",
-                     "code": access_code,
-                     "redirect_uri": secret.TWITCH_REDIRECT_URI})
+                                  "scope": " ".join(scopes),
+                                  "state": self.state})
+        logger.critical(
+            "While logged into Twitch as %s, please visit "
+            "https://id.twitch.tv/oauth2/authorize?%s",
+            self.streamer_username, params)
+        self.auth_finished.wait()
         logger.info("Twitch OAuth: Authorized!")
+
+    def finish_authorization(self, code: str) -> None:
+        try:
+            self._fetch({"grant_type": "authorization_code",
+                         "code": code,
+                         "redirect_uri": secret.TWITCH_REDIRECT_URI})
+        except base.ServerError:
+            logger.exception("Couldn't exchange code for token")
+            raise
+        self.auth_finished.set()
 
     def refresh(self) -> None:
         with self.lock:  # Hold the lock between the DB read and writes.
@@ -96,6 +105,40 @@ class TwitchOAuth:
             raise base.ServerError(body)
         self.data.set("access_token", body["access_token"])
         self.data.set("refresh_token", body["refresh_token"])
+
+
+class NullEvent(base.Event):
+    pass
+
+
+class TwitchOAuthWebHandler(base.Handler[NullEvent]):
+    # TODO: This is a little hacky, but right now @web.url can only be used on
+    #  Connections and Handlers. This *only* needs to be a web endpoint, so we
+    #  create an event type that'll never be seen, and "handle" it.
+    def __init__(self, twitch_oauth: TwitchOAuth):
+        super().__init__()
+        self.twitch_oauth = twitch_oauth
+
+    def check(self, event: NullEvent) -> bool:
+        return False
+
+    def run(self, event: NullEvent) -> Optional[str]:
+        pass
+
+    @web.url("/oauth/redirect")
+    def oauth_redirect(self):
+        if flask.request.args.get("state") != self.twitch_oauth.state:
+            logger.error("Expected state %s / got %s", self.twitch_oauth.state,
+                         flask.request.args["state"])
+            return "Wrong state parameter", 400
+        code = flask.request.args.get("code")
+        if not code:
+            return "Missing code parameter", 400
+        try:
+            self.twitch_oauth.finish_authorization(code)
+        except base.ServerError:
+            return "Authorization error", 400
+        return f"Logged in as {self.twitch_oauth.streamer_username}, thanks!"
 
 
 OnlineStreamData = TypedDict("OnlineStreamData",
