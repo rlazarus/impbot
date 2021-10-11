@@ -98,7 +98,17 @@ class _DelegatingView(views.View):
 
     def dispatch_request(self, *args: Any, **kwargs: Any) -> ViewResponse:
         q: queue.Queue[Union[ViewResponse, Exception]] = queue.Queue(maxsize=1)
-        event = lambda_event.LambdaEvent(lambda: self._run(q, *args, **kwargs))
+
+        @flask.copy_current_request_context
+        def run():
+            try:
+                q.put(self.subview(*args, **kwargs))
+            except Exception as e:
+                # If the subview raised an exception, we want to reraise it from
+                # dispatch_request, so pass it over there via the queue.
+                q.put(e)
+
+        event = lambda_event.LambdaEvent(run)
         # We can cast away the Optional from on_event because it's set in the
         # connection's run(), before the Flask server is started.
         cast(base.EventCallback, self.connection.on_event)(event)
@@ -106,14 +116,6 @@ class _DelegatingView(views.View):
         if isinstance(result, Exception):
             raise RuntimeError from result
         return result
-
-    def _run(self, q: queue.Queue, *args: Any, **kwargs: Any) -> None:
-        try:
-            q.put(self.subview(*args, **kwargs))
-        except Exception as e:
-            # If the subview raised an exception, we want to reraise it from
-            # dispatch_request, so pass it over there via the queue.
-            q.put(e)
 
 
 def url(url: str, **options):
