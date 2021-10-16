@@ -28,7 +28,7 @@ class TwitchOAuth:
         self.data = data.Namespace("impbot.util.twitch_util.TwitchOAuth")
         self.lock = threading.Lock()
         self.auth_finished = threading.Event()
-        self.state = nonce()
+        self.state = ""
 
     def maybe_authorize(self) -> None:
         """
@@ -40,31 +40,37 @@ class TwitchOAuth:
                 self.authorize()
 
     def authorize(self) -> None:
-        # TODO: Better yet, set up a persistent web service shared by all Impbot
-        #   installations -- that service should be the host for the OAuth
-        #   redirect URI, and should hold the Twitch client secret. Until then,
-        #   other installations need to register with Twitch and get their own
-        #   client secret.
+        # TODO: Consider setting up a persistent web service shared by all
+        #   Impbot installations -- that service should be the host for the
+        #   OAuth redirect URI, and should hold the Twitch client secret. Until
+        #   then, other installations need to register with Twitch and get their
+        #   own client secret.
+        logger.critical(
+            "While logged into Twitch as %s, please visit %s",
+            self.streamer_username,
+            flask.url_for("TwitchOAuthWebHandler.login", _scheme="https"))
+        self.auth_finished.wait()
+        logger.info("Twitch OAuth: Authorized!")
+
+    def authorize_url(self) -> str:
         scopes = [
             "bits:read",  # For TwitchEventConnection
             "channel_subscriptions",  # For TwitchEventConnection
             "channel_editor",  # For TwitchEditorHandler
             "channel:read:redemptions",  # For TwitchEventConnection
-            # For TwitchUtil._irc_command_as_streamer() and (channel:moderate)
-            # also for TwitchEventConnection:
-            "chat:edit", "chat:read", "channel:moderate",
+            "chat:edit",  # For TwitchUtil._irc_command_as_streamer()
+            "chat:read",  # For TwitchUtil._irc_command_as_streamer()
+            # TwitchUtil._irc_command_as_streamer() and TwitchEventConnection:
+            "channel:moderate",
         ]
+        self.state = nonce()  # Invalidate any previous state param.
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,
                                   "response_type": "code",
                                   "scope": " ".join(scopes),
                                   "state": self.state})
-        logger.critical(
-            "While logged into Twitch as %s, please visit "
-            "https://id.twitch.tv/oauth2/authorize?%s",
-            self.streamer_username, params)
-        self.auth_finished.wait()
-        logger.info("Twitch OAuth: Authorized!")
+        url = f"https://id.twitch.tv/oauth2/authorize?{params}"
+        return url
 
     def finish_authorization(self, code: str) -> None:
         try:
@@ -89,9 +95,9 @@ class TwitchOAuth:
                 response.status_code, response.text)
             raise base.ServerError(f"{response.status_code} {response.text}")
         body = response.json()
-        login = body["login"]
+        login = body["data"][0]["login"]
         if login != self.streamer_username.lower():
-            display_name = body["display_name"]
+            display_name = body["data"][0]["display_name"]
             raise base.UserError(
                 f"You're logged into Twitch as {display_name}. Please log in "
                 f"as {self.streamer_username} to authorize the bot.")
@@ -152,11 +158,16 @@ class TwitchOAuthWebHandler(base.Handler[NullEvent]):
     def run(self, event: NullEvent) -> Optional[str]:
         pass
 
+    @web.url("/login")
+    def login(self):
+        return flask.redirect(self.twitch_oauth.authorize_url())
+
     @web.url("/oauth/redirect")
     def oauth_redirect(self):
-        if flask.request.args.get("state") != self.twitch_oauth.state:
+        got_state = flask.request.args.get("state")
+        if not got_state or got_state != self.twitch_oauth.state:
             logger.error("Expected state %s / got %s", self.twitch_oauth.state,
-                         flask.request.args["state"])
+                         got_state)
             return "Wrong state parameter", 400
         code = flask.request.args.get("code")
         if not code:
@@ -167,7 +178,8 @@ class TwitchOAuthWebHandler(base.Handler[NullEvent]):
             return "Authorization error", 400
         except base.UserError as e:
             return str(e), 400
-        return f"Logged in as {self.twitch_oauth.streamer_username}, thanks!"
+        return (f"Logged in as {self.twitch_oauth.streamer_username}, thanks! "
+                "You can close the tab now.")
 
 
 OnlineStreamData = TypedDict("OnlineStreamData",
