@@ -28,7 +28,8 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
 
     def check(self, event: twitch_event.PointsReward) -> bool:
         return event.reward_title.startswith(
-            ("Emote only mode", "VIP for the day", "Movie night pass"))
+            ("Emote only mode", "VIP for the day", "Movie night pass",
+             "Extra Hello with"))
 
     def run(self, event: twitch_event.PointsReward) -> Optional[str]:
         if event.reward_title.startswith("Emote only mode"):
@@ -37,6 +38,9 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             return self.vip(event)
         elif event.reward_title.startswith("Movie night pass"):
             return self.movie_night(event)
+        elif event.reward_title.startswith("Extra Hello with"):
+            return (f"@Vale {event.user} redeemed an Extra Hello with "
+                    "No-Bamboozle Insurance!")
         else:
             return None
 
