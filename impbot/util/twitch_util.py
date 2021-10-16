@@ -68,18 +68,46 @@ class TwitchOAuth:
 
     def finish_authorization(self, code: str) -> None:
         try:
-            self._fetch({"grant_type": "authorization_code",
-                         "code": code,
-                         "redirect_uri": secret.TWITCH_REDIRECT_URI})
+            access_token, refresh_token = self._fetch({
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": secret.TWITCH_REDIRECT_URI,
+            })
         except base.ServerError:
             logger.exception("Couldn't exchange code for token")
             raise
+
+        response = requests.get(
+            "https://api.twitch.tv/helix/users",
+            headers={
+                "Client-ID": secret.TWITCH_CLIENT_ID,
+                "Authorization": f"Bearer {access_token}"
+            })
+        if response.status_code != 200:
+            logging.error(
+                "Couldn't fetch user info with new bearer token: %d %s",
+                response.status_code, response.text)
+            raise base.ServerError(f"{response.status_code} {response.text}")
+        body = response.json()
+        login = body["login"]
+        if login != self.streamer_username.lower():
+            display_name = body["display_name"]
+            raise base.UserError(
+                f"You're logged into Twitch as {display_name}. Please log in "
+                f"as {self.streamer_username} to authorize the bot.")
+
+        self.data.set("access_token", access_token)
+        self.data.set("refresh_token", refresh_token)
         self.auth_finished.set()
 
     def refresh(self) -> None:
         with self.lock:  # Hold the lock between the DB read and writes.
-            self._fetch({"grant_type": "refresh_token",
-                         "refresh_token": self.data.get("refresh_token")})
+            access_token, refresh_token = self._fetch({
+                "grant_type": "refresh_token",
+                "refresh_token": self.data.get("refresh_token"),
+            })
+            self.data.set("access_token", access_token)
+            self.data.set("refresh_token", refresh_token)
         logger.info("Twitch OAuth: Refreshed!")
 
     @property
@@ -90,7 +118,7 @@ class TwitchOAuth:
     def access_token(self) -> str:
         return self.data.get("access_token")
 
-    def _fetch(self, params: Dict[str, str]) -> None:
+    def _fetch(self, params: Dict[str, str]) -> Tuple[str, str]:
         response = requests.post(
             "https://id.twitch.tv/oauth2/token",
             params={
@@ -103,8 +131,7 @@ class TwitchOAuth:
         body = response.json()
         if "error" in body:
             raise base.ServerError(body)
-        self.data.set("access_token", body["access_token"])
-        self.data.set("refresh_token", body["refresh_token"])
+        return body["access_token"], body["refresh_token"]
 
 
 class NullEvent(base.Event):
@@ -138,6 +165,8 @@ class TwitchOAuthWebHandler(base.Handler[NullEvent]):
             self.twitch_oauth.finish_authorization(code)
         except base.ServerError:
             return "Authorization error", 400
+        except base.UserError as e:
+            return str(e), 400
         return f"Logged in as {self.twitch_oauth.streamer_username}, thanks!"
 
 
@@ -181,7 +210,7 @@ class TwitchUtil:
         # at a time (per the API docs).
         for i in range(0, len(to_fetch), 100):
             body = self.helix_get(
-                "users", [("login", name) for name in to_fetch[i:i+100]])
+                "users", [("login", name) for name in to_fetch[i:i + 100]])
             # We *don't* check that all names are present -- if any of the input
             # names were bogus, then the output will be smaller than the input.
             for user in body["data"]:
@@ -381,7 +410,7 @@ class TwitchUtil:
             else:
                 if unknown_msgs:
                     logger.error("%s: No response. Unknown pubnotices: %s",
-                                  command, unknown_msgs)
+                                 command, unknown_msgs)
                 else:
                     logger.error("%s: No response.")
                 if retry_on_error:
