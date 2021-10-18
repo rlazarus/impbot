@@ -6,7 +6,7 @@ import random
 import string
 import threading
 from typing import Dict, Union, Optional, List, Any, Set, Tuple, Iterable, \
-    Container
+    Container, Literal
 from urllib import parse
 
 import flask
@@ -124,6 +124,21 @@ class TwitchOAuth:
     def access_token(self) -> str:
         return self.data.get("access_token")
 
+    def refresh_app_access_token(self) -> None:
+        access_token, refresh_token = self._fetch(
+            {"grant_type": "client_credentials"})
+        # There's no refresh token in this case, since we refresh with the
+        # client ID and secret.
+        self.data.set("app_access_token", access_token)
+
+    @property
+    def app_access_token(self) -> str:
+        try:
+            return self.data.get("app_access_token")
+        except KeyError:
+            self.refresh_app_access_token()
+            return self.data.get("app_access_token")
+
     def _fetch(self, params: Dict[str, str]) -> Tuple[str, str]:
         response = requests.post(
             "https://id.twitch.tv/oauth2/token",
@@ -137,7 +152,7 @@ class TwitchOAuth:
         body = response.json()
         if "error" in body:
             raise base.ServerError(body)
-        return body["access_token"], body["refresh_token"]
+        return body["access_token"], body.get("refresh_token", "")
 
 
 class NullEvent(base.Event):
@@ -269,20 +284,24 @@ class TwitchUtil:
 
     def helix_get(self, path: str,
                   params: Union[Dict[str, Any], List[Tuple[str, Any]]],
+                  token_type: Literal["user", "app"] = "user",
                   expected_status: int = 200) -> Dict:
         request = requests.Request(
             method="GET",
             url=f"https://api.twitch.tv/helix/{path}",
             params=params)
-        return self._request(request, "Bearer", expected_status=expected_status)
+        return self._request(request, "Bearer", token_type=token_type,
+                             expected_status=expected_status)
 
     def helix_post(self, path: str, json: Dict[str, Any],
+                   token_type: Literal["user", "app"] = "user",
                    expected_status: int = 200) -> Dict:
         request = requests.Request(
             method="POST",
             url=f"https://api.twitch.tv/helix/{path}",
             json=json)
-        return self._request(request, "Bearer", expected_status=expected_status)
+        return self._request(request, "Bearer", token_type=token_type,
+                             expected_status=expected_status)
 
     def kraken_get(self, path: str,
                    params: Optional[Dict[str, Any]] = None) -> Dict:
@@ -302,17 +321,24 @@ class TwitchUtil:
         return self._request(request, "OAuth")
 
     def _request(self, request, auth_type: str,
+                 token_type: Literal["user", "app"] = "user",
                  expected_status: int = 200) -> Dict:
         request.headers["Client-ID"] = secret.TWITCH_CLIENT_ID
         if auth_type:
-            request.headers.update(
-                {"Authorization": f"{auth_type} {self.oauth.access_token}"})
+            token = (self.oauth.access_token if token_type == "user"
+                     else self.oauth.app_access_token)
+            request.headers.update({"Authorization": f"{auth_type} {token}"})
         with requests.Session() as s:
             response = s.send(request.prepare())
         if response.status_code == 401 and auth_type:
-            self.oauth.refresh()
+            if token_type == "user":
+                self.oauth.refresh()
+                token = self.oauth.access_token
+            else:
+                self.oauth.refresh_app_access_token()
+                token = self.oauth.app_access_token
             request.headers.update(
-                {"Authorization": f"{auth_type} {self.oauth.access_token}"})
+                {"Authorization": f"{auth_type} {token}"})
             with requests.Session() as s:
                 response = s.send(request.prepare())
         if response.status_code != expected_status:
