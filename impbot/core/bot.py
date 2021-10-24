@@ -1,3 +1,4 @@
+import faulthandler
 import logging
 import os
 import queue
@@ -5,7 +6,7 @@ import sys
 import threading
 import time
 from logging import handlers
-from typing import Optional, Dict, Sequence, List, Any, Union, TypeVar
+from typing import Optional, Dict, List, Any, Union, TypeVar
 
 import attr
 
@@ -215,4 +216,7 @@ def log_running_threads() -> None:
                            if not thread.daemon)
         if threads != last:
             logger.error("Still running nondaemon threads: %s", threads)
+            with open("impbot-traceback.log", "a") as f:
+                faulthandler.dump_traceback(file=f)
+            logger.error("Tracebacks dumped to impbot-traceback.log")
             last = threads
