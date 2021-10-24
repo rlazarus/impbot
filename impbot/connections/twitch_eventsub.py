@@ -23,20 +23,18 @@ class TwitchEventSubEvent(base.Event):
     pass
 
 
+class StreamStartedEvent(TwitchEventSubEvent):
+    pass
+
+
 class StreamEndedEvent(TwitchEventSubEvent):
     pass
 
 
 @attr.s(auto_attribs=True)
-class StreamStartedEvent(TwitchEventSubEvent):
-    title: str
-    game: str
-
-
-@attr.s(auto_attribs=True)
 class StreamChangedEvent(TwitchEventSubEvent):
     title: Optional[str]
-    game: Optional[str]
+    category: Optional[str]
 
 
 @attr.s(auto_attribs=True)
@@ -178,13 +176,7 @@ class TwitchEventSubConnection(base.Connection):
 
     def _parse_notification(self, sub_type, event) -> TwitchEventSubEvent:
         if sub_type == "stream.online":
-            # TODO: The old webhook subscription would provide title and
-            #  game information with the event, so we make a separate
-            #  roundtrip for it here for compatibility. Let's phase it out.
-            stream_data = self.twitch_util.get_stream_data(
-                username=self.twitch_util.streamer_username)
-            return StreamStartedEvent(self.reply_conn, stream_data.get("title"),
-                                      stream_data.get("game"))
+            return StreamStartedEvent(self.reply_conn)
 
         if sub_type == "stream.offline":
             return StreamEndedEvent(self.reply_conn)

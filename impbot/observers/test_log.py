@@ -34,10 +34,11 @@ class LoggingObserverTest(unittest.TestCase):
         self.assertEqual(self.buffer.getvalue(), "[Test] <Alicia> hi there\n")
 
     def testEvent(self):
-        event = twitch_eventsub.StreamStartedEvent(
-            reply_connection=None, title="Hello world!", game="Just Chatting")
+        event = twitch_eventsub.StreamChangedEvent(
+            reply_connection=None, title="Hello world!",
+            category="Just Chatting")
         self.observer.observe(event)
         self.assertEqual(
             self.buffer.getvalue(),
-            "StreamStartedEvent(reply_connection=None, title='Hello world!', "
-            "game='Just Chatting')\n")
+            "StreamChangedEvent(reply_connection=None, title='Hello world!', "
+            "category='Just Chatting')\n")
