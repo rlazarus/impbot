@@ -58,6 +58,6 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
                 f'viewercard/{viewer.name})')
 
     def account_age(self, user_id: int) -> timedelta:
-        response = self.twitch_util.kraken_get(f'users/{user_id}')
-        created = dateutil.parser.isoparse(response['created_at'])
+        response = self.twitch_util.helix_get('users', params={'id': user_id})
+        created = dateutil.parser.isoparse(response['data'][0]['created_at'])
         return datetime.now(timezone.utc) - created

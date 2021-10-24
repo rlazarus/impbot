@@ -25,9 +25,9 @@ class TwitchEditorHandler(command.CommandHandler):
             return f'Current title: {current_title}'
         if not (message.user.moderator or message.user.admin):
             raise base.UserError("You can't do that.")
-        channel_id = self.twitch_util.get_channel_id(
-            self.twitch_util.streamer_username)
-        self.twitch_util.kraken_put(f'channels/{channel_id}', json={'channel': {'status': title}})
+        channel_id = self.twitch_util.get_channel_id(self.twitch_util.streamer_username)
+        self.twitch_util.helix_patch('channels', params={'broadcaster_id': channel_id},
+                                     json={'title': title}, expected_status=204)
         return 'Done!'
 
     def run_game(self, message: base.Message, game: Optional[str]):
@@ -42,5 +42,7 @@ class TwitchEditorHandler(command.CommandHandler):
         if not (message.user.moderator or message.user.admin):
             raise base.UserError("You can't do that.")
         channel_id = self.twitch_util.get_channel_id(self.twitch_util.streamer_username)
-        self.twitch_util.kraken_put(f'channels/{channel_id}', json={'channel': {'game': game}})
+        game_id = self.twitch_util.game_id(game)  # Raises UserError if the game doesn't exist.
+        self.twitch_util.helix_patch('channels', params={'broadcaster_id': channel_id},
+                                     json={'game_id': game_id}, expected_status=204)
         return 'Done!'

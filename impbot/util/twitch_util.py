@@ -55,9 +55,9 @@ class TwitchOAuth:
     def authorize_url(self) -> str:
         scopes = [
             'bits:read',  # For TwitchEventConnection
-            'channel_subscriptions',  # For TwitchEventConnection
-            'channel_editor',  # For TwitchEditorHandler
+            'channel:manage:broadcast',  # For TwitchEditorHandler
             'channel:read:redemptions',  # For TwitchEventConnection
+            'channel:read:subscriptions',  # For TwitchEventConnection
             'chat:edit',  # For TwitchUtil._irc_command_as_streamer()
             'chat:read',  # For TwitchUtil._irc_command_as_streamer()
             'channel:moderate',  # TwitchUtil._irc_command_as_streamer() and TwitchEventConnection
@@ -280,13 +280,19 @@ class TwitchUtil:
             raise base.ServerError(f'No Game with ID {game_id}')
         return body['data'][0]['name']
 
+    def game_id(self, game_name: str) -> str:
+        body = self.helix_get('games', {'name': game_name})
+        if not body['data']:
+            raise base.UserError(f'No such game "{game_name}"')
+        return body['data'][0]['id']
+
     def sub_count(self) -> int:
         if not self._sub_count_ttl.fire():
             return self._cached_sub_count
         id = self.get_channel_id(self.streamer_username)
-        response = self.kraken_get(f'channels/{id}/subscriptions', params={'limit': 1})
-        self._cached_sub_count = response['_total']
-        return response['_total']
+        response = self.helix_get('subscriptions', params={'broadcaster_id': id, 'first': 1})
+        self._cached_sub_count = response['total']
+        return response['total']
 
     def helix_get(self, path: str, params: Union[Dict[str, Any], List[Tuple[str, Any]]],
                   token_type: Literal['user', 'app'] = 'user', expected_status: int = 200) -> Dict:
@@ -299,6 +305,14 @@ class TwitchUtil:
                    token_type: Literal['user', 'app'] = 'user', expected_status: int = 200) -> Dict:
         request = requests.Request(
             method='POST', url=f'https://api.twitch.tv/helix/{path}', json=json)
+        return self._request(
+            request, 'Bearer', token_type=token_type, expected_status=expected_status)
+
+    def helix_patch(self, path: str, params: Dict[str, Any], json: Dict[str, Any],
+                    token_type: Literal['user', 'app'] = 'user',
+                    expected_status: int = 200) -> Dict:
+        request = requests.Request(
+            method='PATCH', url=f'https://api.twitch.tv/helix/{path}', params=params, json=json)
         return self._request(
             request, 'Bearer', token_type=token_type, expected_status=expected_status)
 
