@@ -28,7 +28,11 @@ class TwitchOAuth:
         self.data = data.Namespace("impbot.util.twitch_util.TwitchOAuth")
         self.lock = threading.Lock()
         self.auth_finished = threading.Event()
-        self.state = ""
+        # TODO: In principle you could DoS this by starting a bunch of OAuth
+        #  flows, so that this would consume too much memory. The fix is to make
+        #  it a FIFO queue instead of (or in addition to) a hash set -- but
+        #  frankly there are more effective ways to DoS a chat bot anyway.
+        self.states = set()
 
     def maybe_authorize(self) -> None:
         """
@@ -63,12 +67,13 @@ class TwitchOAuth:
             # TwitchUtil._irc_command_as_streamer() and TwitchEventConnection:
             "channel:moderate",
         ]
-        self.state = nonce()  # Invalidate any previous state param.
+        state = nonce()
+        self.states.add(state)
         params = parse.urlencode({"client_id": secret.TWITCH_CLIENT_ID,
                                   "redirect_uri": secret.TWITCH_REDIRECT_URI,
                                   "response_type": "code",
                                   "scope": " ".join(scopes),
-                                  "state": self.state})
+                                  "state": state})
         url = f"https://id.twitch.tv/oauth2/authorize?{params}"
         return url
 
@@ -179,20 +184,31 @@ class TwitchOAuthWebHandler(base.Handler[NullEvent]):
 
     @web.url("/oauth/redirect")
     def oauth_redirect(self):
-        got_state = flask.request.args.get("state")
-        if not got_state or got_state != self.twitch_oauth.state:
-            logger.error("Expected state %s / got %s", self.twitch_oauth.state,
-                         got_state)
-            return "Wrong state parameter", 400
-        code = flask.request.args.get("code")
-        if not code:
+        try:
+            state = flask.request.args["state"]
+        except KeyError:
+            return "Missing state parameter", 400
+
+        try:
+            self.twitch_oauth.states.remove(state)
+        except KeyError:
+            logger.error("Expected states %s / got %s",
+                         self.twitch_oauth.states, state)
+            return "Wrong state parameter", 403
+
+        try:
+            code = flask.request.args["code"]
+        except KeyError:
             return "Missing code parameter", 400
+
         try:
             self.twitch_oauth.finish_authorization(code)
         except base.ServerError:
+            # Already logged, in finish_authorization().
             return "Authorization error", 400
         except base.UserError as e:
             return str(e), 400
+
         return (f"Logged in as {self.twitch_oauth.streamer_username}, thanks! "
                 "You can close the tab now.")
 
