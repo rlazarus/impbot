@@ -1,7 +1,6 @@
-import collections
 import re
 import sre_compile
-from typing import Optional, Mapping
+from typing import Mapping, Optional
 
 from impbot.core import base
 
@@ -25,8 +24,8 @@ class RegexHandler(base.Handler[base.Message]):
         return False
 
     def run(self, message: base.Message) -> Optional[str]:
-        # This is super not thread-safe -- we rely on calling run() exactly once
-        # each time check() returns True, with nothing happening in between.
+        # This is super not thread-safe -- we rely on calling run() exactly once each time check()
+        # returns True, with nothing happening in between.
         response = self._response
         self._response = None
         return response

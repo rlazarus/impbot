@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from logging import handlers
-from typing import Optional, Dict, List, Any, Union, TypeVar
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
 import attr
 
@@ -19,32 +19,31 @@ logger = logging.getLogger(__name__)
 
 
 def init_logging(path: str) -> None:
-    # Configure the root logger, not the "impbot" logger, so as to also divert
-    # library output to the same place.
+    # Configure the root logger, not the "impbot" logger, so as to also divert library output to the
+    # same place.
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
-        fmt="{asctime} {name} {filename}:{lineno} {levelname}: {message}",
-        style="{")
-    formatter.default_msec_format = "%s.%03d"
+        fmt='{asctime} {name} {filename}:{lineno} {levelname}: {message}', style='{')
+    formatter.default_msec_format = '%s.%03d'
 
     stdout_handler = logging.StreamHandler(sys.stdout)
-    # Skip the timestamps on stdout, since we normally run as a systemd unit and
-    # journalctl adds timestamps of its own.
-    stdout_handler.setFormatter(logging.Formatter(
-        fmt="{name} {filename}:{lineno} {levelname}: {message}", style="{"))
+    # Skip the timestamps on stdout, since we normally run as a systemd unit and journalctl adds
+    # timestamps of its own.
+    stdout_handler.setFormatter(
+        logging.Formatter(fmt='{name} {filename}:{lineno} {levelname}: {message}', style='{'))
     stdout_handler.setLevel(logging.INFO)
     root_logger.addHandler(stdout_handler)
 
     os.makedirs(path, exist_ok=True)
-    info_path = os.path.join(path, "impbot.log")
-    file_handler = handlers.TimedRotatingFileHandler(info_path, "midnight")
+    info_path = os.path.join(path, 'impbot.log')
+    file_handler = handlers.TimedRotatingFileHandler(info_path, 'midnight')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
 
-    debug_path = os.path.join(path, "impbot-debug.log")
-    debug_handler = handlers.TimedRotatingFileHandler(debug_path, "midnight")
+    debug_path = os.path.join(path, 'impbot-debug.log')
+    debug_handler = handlers.TimedRotatingFileHandler(debug_path, 'midnight')
     debug_handler.setFormatter(formatter)
     root_logger.addHandler(debug_handler)
 
@@ -55,8 +54,8 @@ class Shutdown(base.Event):
 
 
 class Bot:
-    def __init__(self, db: Optional[str],
-                 modules: List[Union[base.Module, base.ModuleGroup]]) -> None:
+    def __init__(
+            self, db: Optional[str], modules: List[Union[base.Module, base.ModuleGroup]]) -> None:
         modules = _flatten(modules)
 
         connections = []
@@ -69,10 +68,8 @@ class Bot:
                 observers.append(m)
             if isinstance(m, base.Handler):
                 handlers.append(m)
-            if not isinstance(m,
-                              (base.Connection, base.Observer, base.Handler)):
-                raise TypeError(f"{type(m).__name__} is not a Connection, "
-                                f"Observer, or Handler.")
+            if not isinstance(m, (base.Connection, base.Observer, base.Handler)):
+                raise TypeError(f'{type(m).__name__} is not a Connection, Observer, or Handler.')
 
         self.connections = connections
         self.observers = observers
@@ -80,20 +77,19 @@ class Bot:
         # Check for duplicate commands.
         commands: Dict[str, base.Handler[Any]] = {}
         for handler in handlers:
-            for command in getattr(handler, "commands", []):
+            for command in getattr(handler, 'commands', []):
                 if command in commands:
-                    raise ValueError(f"Both {type(commands[command])} and "
-                                     f"{type(handler)} register '{command}'.")
+                    raise ValueError(
+                        f"Both {type(commands[command])} and {type(handler)} register '{command}'.")
                 commands[command] = handler
 
         if db is not None:
             data.startup(db)
-            bot_data = data.Namespace("impbot.core.bot.Bot")
-            db_version = int(bot_data.get("schema_version"))
+            bot_data = data.Namespace('impbot.core.bot.Bot')
+            db_version = int(bot_data.get('schema_version'))
             if db_version != data.SCHEMA_VERSION:
-                logger.critical(
-                    f"Impbot is at schema version {data.SCHEMA_VERSION}, "
-                    f"database is at {db_version}")
+                logger.critical(f'Impbot is at schema version {data.SCHEMA_VERSION}, database is '
+                                f'at {db_version}')
                 sys.exit(1)
 
         self.handlers: List[base.Handler[Any]] = [lambda_event.LambdaHandler()]
@@ -108,8 +104,7 @@ class Bot:
             self.web = None
 
         # Initialize the handler thread here, but we'll start it in main().
-        self._handler_thread = threading.Thread(
-            name="Event handler", target=self.handle_queue)
+        self._handler_thread = threading.Thread(name='Event handler', target=self.handle_queue)
 
     def process(self, event: base.Event) -> None:
         self._queue.put(event)
@@ -145,16 +140,14 @@ class Bot:
             except base.UserError as e:
                 self.reply(event, str(e))
             except (base.AdminError, base.ServerError) as e:
-                # TODO: Add some kind of direct alerting to the admins, maybe
-                #  via DMs.
+                # TODO: Add some kind of direct alerting to the admins, maybe via DMs.
                 logging.exception(e)
-                self.reply(event, "Uh oh!")
+                self.reply(event, 'Uh oh!')
             return
 
     def reply(self, event: base.Event, response: str):
         if event.reply_connection is None:
-            raise ValueError(
-                f"{type(event).__name__} event can't take a chat response")
+            raise ValueError(f"{type(event).__name__} event can't take a chat response")
         event.reply_connection.say(response)
 
     def run_connection(self, connection: base.Connection):
@@ -163,22 +156,22 @@ class Bot:
         connection.run(self.process)
 
     def main(self) -> None:
-        logger.info("Starting...")
+        logger.info('Starting...')
         self._handler_thread.start()
         conn_threads = []
         for connection in self.connections:
-            t = threading.Thread(name=type(connection).__name__,
-                                 target=self.run_connection, args=[connection])
+            t = threading.Thread(name=type(connection).__name__, target=self.run_connection,
+                                 args=[connection])
             t.start()
             conn_threads.append(t)
 
         try:
-            logger.info("Ready.")
+            logger.info('Ready.')
             self._handler_thread.join()
         except KeyboardInterrupt:
-            logger.info("Exiting...")
-            threading.Thread(name="log_running_threads",
-                             target=log_running_threads, daemon=True).start()
+            logger.info('Exiting...')
+            threading.Thread(
+                name='log_running_threads', target=log_running_threads, daemon=True).start()
             self._queue.put(Shutdown())
             self._handler_thread.join()
 
@@ -207,16 +200,15 @@ def _flatten(input: List[Union[T, List[T]]]) -> List[T]:
 
 
 def log_running_threads() -> None:
-    # If we can't exit, list the threads that are holding us open. *This* thread
-    # runs as a daemon, so it won't block the exit itself.
-    last = ""
+    # If we can't exit, list the threads that are holding us open. *This* thread runs as a daemon,
+    # so it won't block the exit itself.
+    last = ''
     while True:
         time.sleep(10)
-        threads = ",".join(f"{thread.name}" for thread in threading.enumerate()
-                           if not thread.daemon)
+        threads = ','.join(thread.name for thread in threading.enumerate() if not thread.daemon)
         if threads != last:
-            logger.error("Still running nondaemon threads: %s", threads)
-            with open("impbot-traceback.log", "a") as f:
+            logger.error('Still running nondaemon threads: %s', threads)
+            with open('impbot-traceback.log', 'a') as f:
                 faulthandler.dump_traceback(file=f)
-            logger.error("Tracebacks dumped to impbot-traceback.log")
+            logger.error('Tracebacks dumped to impbot-traceback.log')
             last = threads

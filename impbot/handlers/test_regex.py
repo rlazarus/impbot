@@ -1,5 +1,5 @@
-from collections import OrderedDict
 import unittest
+from collections import OrderedDict
 
 from impbot.core import base
 from impbot.handlers import regex

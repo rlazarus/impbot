@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta, timezone
 import re
 import socket
 import string
-from typing import Optional, cast, Literal, Set
+from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional, Set, cast
 
 import dateutil.parser
 import pytz
@@ -20,24 +20,22 @@ LETTERS = set(string.ascii_letters + string.digits + ' ')
 MAX_SYMBOL_FRACTION = 0.75
 REPEATING_PATTERN = re.compile(r'(.)\1{34}')
 
-SCHEME = "(?:(?:[a-z][a-z0-9+.-]*:)?//)"
+SCHEME = '(?:(?:[a-z][a-z0-9+.-]*:)?//)'
 USERINFO = "(?:(?:[a-z0-9_.+!~*'();:&=+$,-]|%[0-9a-f]{2})+@)"
 # The IP address patterns are overbroad -- we'll just parse them with inet_pton.
-IPV4 = r"(\d+.\d+.\d+.\d+)"
-IPV6 = r"(?:\[([0-9a-f:]+)\])"
-TLDS_URL = "https://data.iana.org/TLD/tlds-alpha-by-domain.txt"
-TLD = "|".join(line for line in requests.get(TLDS_URL).text.splitlines()
-               if not line.startswith("#"))
-NAME = rf"(?:[a-z0-9-]+\.)+(?:{TLD})"
-PORT = r"(?::\d+)"
+IPV4 = r'(\d+.\d+.\d+.\d+)'
+IPV6 = r'(?:\[([0-9a-f:]+)\])'
+TLDS_URL = 'https://data.iana.org/TLD/tlds-alpha-by-domain.txt'
+TLD = '|'.join(line for line in requests.get(TLDS_URL).text.splitlines()
+               if not line.startswith('#'))
+NAME = rf'(?:[a-z0-9-]+\.)+(?:{TLD})'
+PORT = r'(?::\d+)'
 PCHAR = "[a-z0-9._~!$&'()*+,;=:@-]|%[0-9a-f]{2}"
-PATH = f"(?:/(?:{PCHAR}|/)*)"
-QUERY = rf"(?:\?(?:{PCHAR}|[/?])*)"
-HOST = f"(?:{IPV4}|{IPV6}|{NAME})"
-LINK_PATTERN = re.compile(
-    rf"(?:\b|^){SCHEME}?{USERINFO}?{HOST}{PORT}?{PATH}?{QUERY}?(?:\b|$)",
-    re.IGNORECASE)
-
+PATH = f'(?:/(?:{PCHAR}|/)*)'
+QUERY = rf'(?:\?(?:{PCHAR}|[/?])*)'
+HOST = f'(?:{IPV4}|{IPV6}|{NAME})'
+LINK_PATTERN = re.compile(rf'(?:\b|^){SCHEME}?{USERINFO}?{HOST}{PORT}?{PATH}?{QUERY}?(?:\b|$)',
+                          re.IGNORECASE)
 
 
 class PermitHandler(command.CommandHandler):
@@ -48,24 +46,23 @@ class PermitHandler(command.CommandHandler):
     def run_permit(self, message: base.Message, username: str) -> Optional[str]:
         if not message.user.moderator:
             return
-        if username.startswith("@"):
+        if username.startswith('@'):
             username = username[1:]
         user = twitch.TwitchUser(username.lower(), display_name=username)
         if user in self.link_allowed_users:
-            return (f"@{message.user} That's okay, {user} is always allowed to "
-                    f"post links.")
+            return f"@{message.user} That's okay, {user} is always allowed to post links."
         if self.is_permitted(user):
             # We must've already done this just now -- treat it like a cooldown.
             return
         now = datetime.now(timezone.utc)
-        self.data.set_subkey("permitted", user.name, str(now))
-        return f"{user} is now permitted to post a link in the next 45 seconds."
+        self.data.set_subkey('permitted', user.name, str(now))
+        return f'{user} is now permitted to post a link in the next 45 seconds.'
 
     def is_permitted(self, user: twitch.TwitchUser) -> bool:
         if user in self.link_allowed_users:
             return True
         try:
-            permitted = self.data.get("permitted", user.name)
+            permitted = self.data.get('permitted', user.name)
             permission_time = dateutil.parser.isoparse(permitted)
             permission_age = datetime.now(timezone.utc) - permission_time
             return permission_age < timedelta(seconds=45)
@@ -73,7 +70,7 @@ class PermitHandler(command.CommandHandler):
             return False
 
     def unpermit(self, user: twitch.TwitchUser):
-        self.data.unset("permitted", user.name)
+        self.data.unset('permitted', user.name)
 
 
 class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
@@ -85,7 +82,7 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
         self.banned_words_msg = banned_words_msg
         self.permit_handler = permit_handler
         self.allowed_urls = {url.lower() for url in allowed_urls}
-        self.action: Optional[Literal["delete", "timeout"]] = None
+        self.action: Optional[Literal['delete', 'timeout']] = None
         self.duration: Optional[timedelta] = None
         self.reply: Optional[str] = None
 
@@ -97,22 +94,21 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
             if self.permit_handler.is_permitted(user):
                 self.permit_handler.unpermit(user)
             else:
-                self.action = "timeout"
+                self.action = 'timeout'
                 if self.warning(user):
                     self.duration = timedelta(minutes=3)
                 else:
                     self.duration = timedelta(seconds=15)
-                self.reply = (f"@{user} If you want to post a link, ask a mod "
-                              f"to permit you!")
+                self.reply = f'@{user} If you want to post a link, ask a mod to permit you!'
                 return True
 
         if self.banned_words.search(message.text):
             if self.warning(user):
-                self.action = "timeout"
+                self.action = 'timeout'
                 self.duration = timedelta(minutes=3)
             else:
-                self.action = "delete"
-            self.reply = f"@{user} {self.banned_words_msg}"
+                self.action = 'delete'
+            self.reply = f'@{user} {self.banned_words_msg}'
             return True
 
         if user.is_subscriber:
@@ -120,37 +116,36 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
         # TODO: Disable temporarily on raid/host.
         if message.action:
             # TODO: Escalate from delete to timeout after a warning, throughout.
-            self.action = "delete"
-            self.reply = f"@{user} Colored text is for subs only."
+            self.action = 'delete'
+            self.reply = f'@{user} Colored text is for subs only.'
             return True
         if len(message.emotes) > MAX_EMOTES:
-            self.action = "delete"
-            self.reply = f"@{user} Too many emotes."
+            self.action = 'delete'
+            self.reply = f'@{user} Too many emotes.'
             return True
 
         if len(message.text) < TRIGGER_LENGTH:
             return False
         if all(c in CAPS for c in message.text):
-            self.action = "delete"
+            self.action = 'delete'
             self.reply = f"@{user} Shhh, please don't shout."
             return True
         symbol_count = sum(1 if c not in LETTERS else 0 for c in message.text)
         if symbol_count > MAX_SYMBOL_FRACTION * len(message.text):
-            self.action = "delete"
-            self.reply = f"@{user} Too many symbols."
+            self.action = 'delete'
+            self.reply = f'@{user} Too many symbols.'
             return True
         if REPEATING_PATTERN.search(message.text):
-            self.action = "delete"
-            self.reply = f"@{user} Too many repeating characters."
+            self.action = 'delete'
+            self.reply = f'@{user} Too many repeating characters.'
             return True
         return False
 
     def check_links(self, message: twitch.TwitchMessage) -> bool:
         for match in LINK_PATTERN.finditer(message.text):
-            # Our IP-address capturing groups are overbroad -- they'll match
-            # stuff like 999.999.999.999 or 1::1:::1. If we get something that
-            # *might* be an IP address, it's easiest to just try to parse it
-            # with inet_pton, to see if we succeed.
+            # Our IP-address capturing groups are overbroad -- they'll match stuff like
+            # 999.999.999.999 or 1::1:::1. If we get something that *might* be an IP address, it's
+            # easiest to just try to parse it with inet_pton, to see if we succeed.
             try:
                 if match.group(1):
                     _ = socket.inet_pton(socket.AF_INET, match.group(1))
@@ -164,20 +159,20 @@ class ModerationFilterHandler(base.Handler[twitch.TwitchMessage]):
         return False
 
     def warning(self, user: twitch.TwitchUser) -> bool:
-        # Warnings reset at midnight. We use midnight Pacific Time, since it's
-        # more likely to fall between streams than midnight UTC.
-        pacific = pytz.timezone("America/Los_Angeles")
+        # Warnings reset at midnight. We use midnight Pacific Time, since it's more likely to fall
+        # between streams than midnight UTC.
+        pacific = pytz.timezone('America/Los_Angeles')
         today = str(datetime.now(tz=pacific).date())
-        if self.data.get("warning", user.name, default="") == today:
+        if self.data.get('warning', user.name, default='') == today:
             return True
-        self.data.set_subkey("warning", user.name, today)
+        self.data.set_subkey('warning', user.name, today)
         return False
 
     def run(self, message: twitch.TwitchMessage) -> None:
         conn = cast(twitch.TwitchChatConnection, message.reply_connection)
-        if self.action == "delete":
+        if self.action == 'delete':
             conn.delete(message, self.reply)
-        elif self.action == "timeout":
+        elif self.action == 'timeout':
             conn.timeout(message.user, self.duration, self.reply)
 
         self.action = None
@@ -189,8 +184,7 @@ def module_group(
         banned_words: re.Pattern, banned_words_msg: str, allowed_urls: Set[str],
         link_allowed_users: Set[twitch.TwitchUser]) -> base.ModuleGroup:
     permit_handler = PermitHandler(link_allowed_users)
-    # The mod filter comes first, because otherwise non-mods could type
-    # "!permit link.com" and get ignored.
-    return [ModerationFilterHandler(
-                banned_words, banned_words_msg, permit_handler, allowed_urls),
+    # The mod filter comes first, because otherwise non-mods could type "!permit link.com" and get
+    # ignored.
+    return [ModerationFilterHandler(banned_words, banned_words_msg, permit_handler, allowed_urls),
             permit_handler]

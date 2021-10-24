@@ -7,11 +7,12 @@ from typing import Optional
 import attr
 import obswebsocket
 import websocket
-from obswebsocket import requests, events, exceptions
+from obswebsocket import events, exceptions, requests
 
 from impbot.core import base
 
 logger = logging.getLogger(__name__)
+KEEPALIVE_INTERVAL = datetime.timedelta(seconds=2)
 
 
 class ObsEvent(base.Event):
@@ -35,10 +36,8 @@ class ObsConnection(base.Connection):
     def __init__(self, host: str, port: int, password: str) -> None:
         super().__init__()
         self.shutdown_event = threading.Event()
-        self.obsws = ReconnectingObsws(self.shutdown_event, host, port,
-                                       password)
-        self.ping_thread = threading.Thread(target=self.ping,
-                                            name='ObsConnection-ping')
+        self.obsws = ReconnectingObsws(self.shutdown_event, host, port, password)
+        self.ping_thread = threading.Thread(target=self.keepalive, name='ObsConnection-keepalive')
 
     def run(self, on_event: base.EventCallback) -> None:
         self.obsws.set_callback(on_event)
@@ -54,28 +53,25 @@ class ObsConnection(base.Connection):
         self.shutdown_event.set()
         self.obsws.disconnect()
 
-    def ping(self) -> None:
-        # Sometimes we won't notice the connection is lost until we try to send
-        # something and it fails. If we ever go more than a couple of seconds
-        # without receiving anything, send a status request and ignore the
-        # result.
+    def keepalive(self) -> None:
+        # Sometimes we won't notice the connection is lost until we try to send something and it
+        # fails. If we ever go more than a couple of seconds without receiving anything, send a
+        # status request and ignore the result.
         while not self.shutdown_event.is_set():
             time.sleep(1)
             if (self.obsws.is_connected() and
-                    datetime.datetime.now() - self.obsws.last_received >
-                    datetime.timedelta(seconds=2)):
+                    datetime.datetime.now() - self.obsws.last_received > KEEPALIVE_INTERVAL):
                 self.obsws.call(requests.GetStreamingStatus())
 
 
 class ReconnectingObsws(obswebsocket.obsws):
     """
-    obswebsocket is designed for ephemeral uses: it connects once, eventually
-    disconnects, and then you're expected to create a new one. Instead we want
-    a long-lived object that reconnects as necessary.
+    obswebsocket is designed for ephemeral uses: it connects once, eventually disconnects, and then
+    you're expected to create a new one. Instead we want a long-lived object that reconnects as
+    necessary.
     """
 
-    def __init__(self, shutdown_event: threading.Event, host='localhost',
-                 port=4444, password=''):
+    def __init__(self, shutdown_event: threading.Event, host='localhost', port=4444, password=''):
         super().__init__(host, port, password)
         self.shutdown_event = shutdown_event
         self.on_event: Optional[base.EventCallback] = None
@@ -101,7 +97,7 @@ class ReconnectingObsws(obswebsocket.obsws):
     def connect(self, host: Optional[str] = None, port: Optional[int] = None):
         while True:
             if self.shutdown_event.is_set():
-                raise base.ShuttingDownError("")
+                raise base.ShuttingDownError('')
             try:
                 super().connect(host, port)
                 self.on_event(ObsConnected(None))

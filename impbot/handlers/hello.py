@@ -4,8 +4,8 @@ from impbot.handlers import command
 
 class HelloHandler(command.CommandHandler):
     def run_hello(self) -> str:
-        return "Hello, world!"
+        return 'Hello, world!'
 
-    @web.url("/hello")
+    @web.url('/hello')
     def web(self) -> str:
-        return "Hello, world, but in HTTP!"
+        return 'Hello, world, but in HTTP!'

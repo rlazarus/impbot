@@ -17,22 +17,20 @@ class OnCallModHandler(command.CommandHandler):
 
     def run_modme(self, msg: base.Message) -> Optional[str]:
         if msg.user not in self.on_call_mods:
-            return (f"@{msg.user} That command is only for our mods to use. "
-                    f"valeGiggle But thanks for your interest in modding! Type "
-                    f"!m2 for more info.")
+            return (f'@{msg.user} That command is only for our mods to use. valeGiggle But thanks '
+                    ' for your interest in modding! Type !m2 for more info.')
         self.data.set(msg.user.name, today())
         self.twitch_util.mod(msg.user.name)
-        return f"@{msg.user} vale7"
+        return f'@{msg.user} vale7'
 
     def run_unmodme(self, msg: base.Message) -> Optional[str]:
         if msg.user not in self.on_call_mods:
             if msg.user.moderator:
-                return (f"@{msg.user} Sorry pal, you signed a blood oath, "
-                        f"that's over my head.")
+                return f"@{msg.user} Sorry pal, you signed a blood oath, that's over my head."
             return
         self.data.unset(msg.user.name)
         self.twitch_util.unmod(msg.user.name)
-        return f"@{msg.user} valeLove"
+        return f'@{msg.user} valeLove'
 
     def run_modsdosomething(self, msg: base.Message) -> Optional[str]:
         if msg.user.name != self.twitch_util.streamer_username.lower():
@@ -40,11 +38,10 @@ class OnCallModHandler(command.CommandHandler):
         for i in self.on_call_mods:
             self.data.set(i.name, today())
         self.twitch_util.mod([user.name for user in self.on_call_mods])
-        return "Mods assemble! vale7"
+        return 'Mods assemble! vale7'
 
 
-class OnCallModCleanupObserver(
-        base.Observer[twitch_eventsub.StreamStartedEvent]):
+class OnCallModCleanupObserver(base.Observer[twitch_eventsub.StreamStartedEvent]):
     def __init__(self, on_call_mod_handler: OnCallModHandler):
         super().__init__()
         self.data = on_call_mod_handler.data
@@ -63,11 +60,10 @@ class OnCallModCleanupObserver(
 
 
 def today():
-    timezone = pytz.timezone("America/Los_Angeles")
+    timezone = pytz.timezone('America/Los_Angeles')
     return str(datetime.datetime.now(tz=timezone).date())
 
 
-def module_group(util: twitch_util.TwitchUtil,
-                 on_call_mods: Set[str]) -> base.ModuleGroup:
+def module_group(util: twitch_util.TwitchUtil, on_call_mods: Set[str]) -> base.ModuleGroup:
     handler = OnCallModHandler(util, on_call_mods)
     return [handler, OnCallModCleanupObserver(handler)]

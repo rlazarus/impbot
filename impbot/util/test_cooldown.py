@@ -9,8 +9,7 @@ from impbot.util import cooldown
 
 class CooldownTest(unittest.TestCase):
     def setUp(self):
-        start_time = datetime.datetime(2018, 1, 1, 12, 0, 0,
-                                       tzinfo=datetime.timezone.utc)
+        start_time = datetime.datetime(2018, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
         self._freeze_time = freezegun.freeze_time(start_time)
         self.time = self._freeze_time.start()
 
@@ -62,8 +61,7 @@ class CooldownTest(unittest.TestCase):
         self.assertTrue(cds.peek(base.User('bob')))
 
     def testCompoundGlobalOnly(self):
-        cds = cooldown.GlobalAndUserCooldowns(datetime.timedelta(minutes=1),
-                                              None)
+        cds = cooldown.GlobalAndUserCooldowns(datetime.timedelta(minutes=1), None)
         self.assertTrue(cds.peek(base.User('alice')))
         self.assertTrue(cds.peek(base.User('bob')))
         self.assertTrue(cds.fire(base.User('alice')))
@@ -89,8 +87,7 @@ class CooldownTest(unittest.TestCase):
         self.assertTrue(cds.peek(base.User('bob')))
 
     def testCompoundUserOnly(self):
-        cds = cooldown.GlobalAndUserCooldowns(None,
-                                              datetime.timedelta(minutes=5))
+        cds = cooldown.GlobalAndUserCooldowns(None, datetime.timedelta(minutes=5))
         self.assertTrue(cds.peek(base.User('alice')))
         self.assertTrue(cds.peek(base.User('bob')))
         self.assertTrue(cds.fire(base.User('alice')))

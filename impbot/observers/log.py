@@ -17,17 +17,16 @@ class LoggingObserver(base.Observer[base.Event]):
     def observe(self, event: base.Event) -> None:
         if isinstance(event, obs.ObsMessage):
             event = cast(obs.ObsMessage, event)
-            if isinstance(event.obs_message, (events.StreamStatus,
-                                              events.Heartbeat)):
+            if isinstance(event.obs_message, (events.StreamStatus, events.Heartbeat)):
                 # Skip these, they're too noisy.
                 return
         if isinstance(event, base.Message):
             event = cast(base.Message, event)
             connection = type(event.reply_connection).__name__
-            if connection.endswith("Connection"):
-                connection = connection[:-len("Connection")]
-            if connection.endswith("Chat"):
-                connection = connection[:-len("Chat")]
-            self.logger.info(f"[{connection}] <{event.user}> {event.text}")
+            if connection.endswith('Connection'):
+                connection = connection[:-len('Connection')]
+            if connection.endswith('Chat'):
+                connection = connection[:-len('Chat')]
+            self.logger.info(f'[{connection}] <{event.user}> {event.text}')
             return
         self.logger.info(event)

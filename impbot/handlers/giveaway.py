@@ -16,24 +16,20 @@ class CommandGiveawayHandler(command.CommandHandler):
         self.error_cooldown = cooldown.Cooldown(timedelta(seconds=10))
 
     def run_enter(self, message: base.Message) -> Optional[str]:
-        if self.data.exists("_ended"):
+        if self.data.exists('_ended'):
             if self.error_cooldown.fire():
-                raise base.UserError(f"Sorry @{message.user}, it's too late to "
-                                     f"enter! NotLikeThis")
+                raise base.UserError(f"Sorry @{message.user}, it's too late to enter! NotLikeThis")
             else:
                 return None
         if self.data.exists(message.user.name):
-            raise base.UserError(f"@{message.user} Don't worry, you're "
-                                 f"already entered.")
-        self.data.set(message.user.name,
-                      cast(twitch.TwitchUser, message.user).display_name)
+            raise base.UserError(f"@{message.user} Don't worry, you're already entered.")
+        self.data.set(message.user.name, cast(twitch.TwitchUser, message.user).display_name)
         return f"@{message.user} You've entered the giveaway, good luck!"
 
     def run_unenter(self, message: base.Message, target: Optional[str]) -> Optional[str]:
         if target:
             target = target.lower()
-            authorized = message.user.moderator or message.user.admin
-            if target != message.user.name and not authorized:
+            if target != message.user.name and not (message.user.moderator or message.user.admin):
                 return
         else:
             target = message.user.name
@@ -48,17 +44,17 @@ class CommandGiveawayHandler(command.CommandHandler):
         if target == message.user.name:
             return f"Okay @{message.user}, you're out of the giveaway."
         else:
-            return f"Removed {target} from the giveaway."
+            return f'Removed {target} from the giveaway.'
 
     def run_endgiveaway(self, message: base.Message) -> Optional[str]:
         if not (message.user.moderator or message.user.admin):
             return
-        self.data.set("_ended", 1)
-        return "No more entries! vale7"
+        self.data.set('_ended', 1)
+        return 'No more entries! vale7'
 
-    @web.url("/giveaway")
+    @web.url('/giveaway')
     def web(self) -> str:
         data = self.data.get_all_values()
-        data.pop("_ended", None)
+        data.pop('_ended', None)
         values = sorted(data.values(), key=str.casefold)
-        return flask.render_template("giveaway.html", entries=values)
+        return flask.render_template('giveaway.html', entries=values)

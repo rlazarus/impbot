@@ -23,32 +23,30 @@ class TimerConnection(base.Connection):
         for timer in self.timers:
             timer.cancel()
 
-    def start_once(self, interval: datetime.timedelta,
-                   run: Callable[[], None]) -> "SingleTimer":
+    def start_once(self, interval: datetime.timedelta, run: Callable[[], None]) -> 'SingleTimer':
         timer = SingleTimer(self, interval, run)
         self.timers.append(timer)
         return timer
 
-    def start_repeating(self, interval: datetime.timedelta,
-                        run: Callable[[], None]) -> "RepeatingTimer":
+    def start_repeating(
+            self, interval: datetime.timedelta, run: Callable[[], None]) -> 'RepeatingTimer':
         timer = RepeatingTimer(self, interval, run)
         self.timers.append(timer)
         return timer
 
-    def remove(self, timer: "Timer") -> None:
+    def remove(self, timer: 'Timer') -> None:
         try:
             self.timers.remove(timer)
         except ValueError:
-            # Very occasionally, a timer gets double-removed due to a race
-            # condition. That's actually fine, so eating the ValueError here
-            # makes remove() idempotent.
+            # Very occasionally, a timer gets double-removed due to a race condition. That's
+            # actually fine, so eating the ValueError here makes remove() idempotent.
             pass
 
 
 class Timer(metaclass=ABCMeta):
 
-    def __init__(self, timer_conn: TimerConnection,
-                 interval: datetime.timedelta, run: Callable[[], None]):
+    def __init__(self, timer_conn: TimerConnection, interval: datetime.timedelta,
+                 run: Callable[[], None]):
         self.run = run
         self.timer_conn = timer_conn
         self.end_time = datetime.datetime.now() + interval
@@ -76,16 +74,16 @@ class Timer(metaclass=ABCMeta):
 
 class SingleTimer(Timer):
 
-    def __init__(self, timer_conn: TimerConnection,
-                 interval: datetime.timedelta, run: Callable[[], None]):
+    def __init__(self, timer_conn: TimerConnection, interval: datetime.timedelta,
+                 run: Callable[[], None]):
         super().__init__(timer_conn, interval, run)
         self.finished = threading.Event()
         self.start_timer()
 
     def run_as_lambda(self) -> None:
         def run() -> None:
-            # This runs on the event thread. Double-check the cancel flag, in
-            # case we got canceled while this was queued.
+            # This runs on the event thread. Double-check the cancel flag, in case we got canceled
+            # while this was queued.
             if self.cancelled.is_set():
                 return
             if self.end_time > datetime.datetime.now():
@@ -108,23 +106,22 @@ class SingleTimer(Timer):
 
 
 class RepeatingTimer(Timer):
-    def __init__(self, timer_conn: TimerConnection,
-                 interval: datetime.timedelta, run: Callable[[], None]):
+    def __init__(self, timer_conn: TimerConnection, interval: datetime.timedelta,
+                 run: Callable[[], None]):
         super().__init__(timer_conn, interval, run)
         self.interval = interval
         self.start_timer()
 
     def run_as_lambda(self) -> None:
         def run() -> None:
-            # This runs on the event thread. Double-check the cancel flag, in
-            # case we got canceled while this was queued.
+            # This runs on the event thread. Double-check the cancel flag, in case we got canceled
+            # while this was queued.
             if self.cancelled.is_set():
                 return
             self.run()
 
-        # This runs on the timer thread, so it isn't delayed by running the
-        # actual lambda. Enqueue the lambda, then immediately repeat if
-        # appropriate.
+        # This runs on the timer thread, so it isn't delayed by running the actual lambda. Enqueue
+        # the lambda, then immediately repeat if appropriate.
         self.timer_conn.on_event(lambda_event.LambdaEvent(run))
         if not self.cancelled.is_set():
             self.end_time += self.interval

@@ -2,7 +2,7 @@ import datetime
 import logging
 import threading
 import time
-from typing import Optional, List
+from typing import List, Optional
 
 from irc import client
 
@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 class IrcConnection(base.ChatConnection):
     def __init__(self, host: str, port: int, nickname: str, channel: str,
-                 password: Optional[str] = None,
-                 capabilities: Optional[List[str]] = None) -> None:
+                 password: Optional[str] = None, capabilities: Optional[List[str]] = None) -> None:
         super().__init__()
         self.host = host
         self.port = port
@@ -29,10 +28,10 @@ class IrcConnection(base.ChatConnection):
         self.last_ping = datetime.datetime.now()
         self.on_event: Optional[base.EventCallback] = None
         self.reactor = client.Reactor()
-        self.reactor.add_global_handler("welcome", self.on_welcome)
-        self.reactor.add_global_handler("pubmsg", self.on_pubmsg)
-        self.reactor.add_global_handler("action", self.on_action)
-        self.reactor.add_global_handler("ping", self.on_ping)
+        self.reactor.add_global_handler('welcome', self.on_welcome)
+        self.reactor.add_global_handler('pubmsg', self.on_pubmsg)
+        self.reactor.add_global_handler('action', self.on_action)
+        self.reactor.add_global_handler('ping', self.on_ping)
 
     # bot.Connection overrides:
 
@@ -42,23 +41,21 @@ class IrcConnection(base.ChatConnection):
     def run(self, on_event: base.EventCallback) -> None:
         self.on_event = on_event
         while not self.shutdown_event.is_set():
-            logger.info("Connecting...")
+            logger.info('Connecting...')
             self.last_ping = datetime.datetime.now()
             self.connection = self.reactor.server().connect(
                 self.host, self.port, self.nickname, self.password)
 
-            # We run this loop ourselves, instead of calling
-            # reactor.process_forever(), so that we can time out when we
-            # haven't gotten a ping.
+            # We run this loop ourselves, instead of calling reactor.process_forever(), so that we
+            # can time out when we haven't gotten a ping.
             # TODO: See if scheduler.execute_every() would work instead.
             while self.connection.connected:
                 self.reactor.process_once(0.2)
                 if datetime.datetime.now() - self.last_ping > PING_TIMEOUT:
-                    logger.info(
-                        f"{datetime.datetime.now() - self.last_ping} since "
-                        "last ping; reconnecting.")
+                    logger.info(f'{datetime.datetime.now() - self.last_ping} since last ping; '
+                                f'reconnecting.')
                     self.disconnect()
-            logger.info("Disconnected.")
+            logger.info('Disconnected.')
             if not self.expect_disconnection.is_set():
                 time.sleep(3)  # It's, uh, exponential backoff with a base of 1.
             self.expect_disconnection.clear()
@@ -74,23 +71,19 @@ class IrcConnection(base.ChatConnection):
 
     # IRC handlers:
 
-    def on_welcome(self, connection: client.ServerConnection,
-                   _: client.Event) -> None:
+    def on_welcome(self, connection: client.ServerConnection, _: client.Event) -> None:
         if self.capabilities:
-            connection.cap("REQ", *self.capabilities)
-            connection.cap("END")
+            connection.cap('REQ', *self.capabilities)
+            connection.cap('END')
         connection.join(self.channel)
 
-    def on_pubmsg(self, _: client.ServerConnection,
-                  event: client.Event) -> None:
+    def on_pubmsg(self, _: client.ServerConnection, event: client.Event) -> None:
         self.on_event(self._message(event))
 
-    def on_action(self, _: client.ServerConnection,
-                  event: client.Event) -> None:
+    def on_action(self, _: client.ServerConnection, event: client.Event) -> None:
         self.on_event(self._action(event))
 
-    def on_ping(self, _conn: client.ServerConnection,
-                _event: client.Event) -> None:
+    def on_ping(self, _conn: client.ServerConnection, _event: client.Event) -> None:
         self.last_ping = datetime.datetime.now()
 
     # Hook for subclasses to override:

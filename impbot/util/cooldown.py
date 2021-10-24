@@ -1,6 +1,6 @@
-import datetime
 import collections
-from typing import Optional, Dict
+import datetime
+from typing import Dict, Optional
 
 from impbot.core import base
 
@@ -8,12 +8,10 @@ from impbot.core import base
 class Cooldown(object):
     def __init__(self, duration: datetime.timedelta) -> None:
         self.duration = duration
-        self.last_fire = datetime.datetime.fromtimestamp(0,
-                                                         datetime.timezone.utc)
+        self.last_fire = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
 
     def peek(self) -> bool:
-        return (datetime.datetime.now(datetime.timezone.utc) >=
-                self.last_fire + self.duration)
+        return (datetime.datetime.now(datetime.timezone.utc) >= self.last_fire + self.duration)
 
     def fire(self) -> bool:
         if not self.peek():
@@ -26,8 +24,7 @@ class GlobalAndUserCooldowns(object):
     def __init__(self, global_duration: Optional[datetime.timedelta],
                  user_duration: Optional[datetime.timedelta],
                  global_last_fire: Optional[datetime.timedelta] = None,
-                 user_last_fire: Optional[
-                     Dict[base.User, datetime.timedelta]] = None) -> None:
+                 user_last_fire: Optional[Dict[base.User, datetime.timedelta]] = None) -> None:
         if global_duration is None:
             global_duration = datetime.timedelta(0)
         if user_duration is None:
@@ -48,8 +45,8 @@ class GlobalAndUserCooldowns(object):
         return global_okay and user_okay
 
     def fire(self, user: base.User) -> bool:
-        # Peeking first is important: we only update the timestamp on either
-        # cooldown if both will pass.
+        # Peeking first is important: we only update the timestamp on either cooldown if both will
+        # pass.
         if not (self.peek(user) and self.global_cd.peek()):
             return False
         self.user_cds[user].fire()
@@ -57,9 +54,7 @@ class GlobalAndUserCooldowns(object):
         return True
 
     def __repr__(self) -> str:
-        user_last_fires = {user: cd.last_fire
-                           for user, cd in self.user_cds.items()
+        user_last_fires = {user: cd.last_fire for user, cd in self.user_cds.items()
                            if not cd.peek()}
-        return (f"cooldown.GlobalAndUserCooldowns({self.global_cd.duration!r}, "
-                f"{self.user_duration!r}, {self.global_cd.last_fire!r},"
-                f"{user_last_fires!r})")
+        return (f'cooldown.GlobalAndUserCooldowns({self.global_cd.duration!r}, '
+                f'{self.user_duration!r}, {self.global_cd.last_fire!r}, {user_last_fires!r})')

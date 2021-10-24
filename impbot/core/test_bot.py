@@ -1,19 +1,19 @@
 import unittest
-from typing import Union, Any, cast
+from typing import Union, cast
 from unittest import mock
 
-from impbot.core import bot
 from impbot.core import base
+from impbot.core import bot
 from impbot.handlers import command
 
 
 class FooHandler(command.CommandHandler):
     def run_foo(self):
-        return "foo!"
+        return 'foo!'
 
 
 class BarHandler(command.CommandHandler):
-    @command.command("bar")
+    @command.command('bar')
     def bar(self):
         pass
 
@@ -26,7 +26,7 @@ class AnotherFooHandler(command.CommandHandler):
 class OneEventConnection(base.ChatConnection):
     def __init__(self, event: Union[str, base.Event]) -> None:
         if isinstance(event, str):
-            event = base.Message(self, base.User("username"), event)
+            event = base.Message(self, base.User('username'), event)
         self.event = event
 
     def say(self, text: str) -> None:
@@ -47,18 +47,15 @@ class BotTest(unittest.TestCase):
 
     def testInit(self):
         self.init([AnotherFooHandler()])
-
         self.init([FooHandler(), BarHandler()])
-
-        self.assertRaises(ValueError, self.init,
-                          [FooHandler(), AnotherFooHandler()])
+        self.assertRaises(ValueError, self.init, [FooHandler(), AnotherFooHandler()])
 
     def testHandle(self):
         b = self.init([FooHandler(), BarHandler()])
-        b.handle(base.Message(self.conn, base.User("username"), "!foo"))
-        self.reply.assert_called_with("foo!")
+        b.handle(base.Message(self.conn, base.User('username'), '!foo'))
+        self.reply.assert_called_with('foo!')
         self.reply.reset_mock()
-        b.handle(base.Message(self.conn, base.User("username"), "not !foo"))
+        b.handle(base.Message(self.conn, base.User('username'), 'not !foo'))
         self.reply.assert_not_called()
 
     def testQuit(self):
@@ -69,9 +66,8 @@ class BotTest(unittest.TestCase):
 
     def testMultipleConnections(self):
         handler = mock.Mock(spec=base.Handler)
-        events = ["one", "two", bot.Shutdown()]
+        events = ['one', 'two', bot.Shutdown()]
         b = bot.Bot(None, [[OneEventConnection(e) for e in events], handler])
         b.main()
-        texts = [message.text for ((message,), _) in
-                 handler.check.call_args_list]
+        texts = [message.text for ((message,), _) in handler.check.call_args_list]
         self.assertEqual(texts, events[:-1])
