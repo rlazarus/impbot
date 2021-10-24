@@ -4,15 +4,14 @@ import logging
 import random
 import string
 import threading
+from datetime import datetime
 from typing import Iterable, Optional, Tuple
 
+import attr
 import flask
 import werkzeug.exceptions
 from dateutil.parser import parse
 
-from impbot.connections import twitch_webhook
-from impbot.connections.twitch_webhook import NewFollowerEvent, \
-    StreamChangedEvent, StreamEndedEvent, StreamStartedEvent
 from impbot.core import base, web, data
 from impbot.core.base import EventCallback
 from impbot.util import twitch_util
@@ -20,10 +19,33 @@ from impbot.util import twitch_util
 logger = logging.getLogger(__name__)
 
 
+class TwitchEventSubEvent(base.Event):
+    pass
+
+
+class StreamEndedEvent(TwitchEventSubEvent):
+    pass
+
+
+@attr.s(auto_attribs=True)
+class StreamStartedEvent(TwitchEventSubEvent):
+    title: str
+    game: str
+
+
+@attr.s(auto_attribs=True)
+class StreamChangedEvent(TwitchEventSubEvent):
+    title: Optional[str]
+    game: Optional[str]
+
+
+@attr.s(auto_attribs=True)
+class NewFollowerEvent(TwitchEventSubEvent):
+    follower_name: str
+    time: datetime
+
+
 class TwitchEventSubConnection(base.Connection):
-    # TODO: This replaces TwitchWebhookConnection, which speaks a now-deprecated
-    #  protocol. Move the TwitchWebhookEvent hierarchy into this module, then
-    #  delete twitch_webhook.
     def __init__(self, reply_conn: base.ChatConnection,
                  util: twitch_util.TwitchUtil):
         self.reply_conn = reply_conn
@@ -154,8 +176,7 @@ class TwitchEventSubConnection(base.Connection):
                 id, timestamp, data, computed_signature.hex(), signature)
             raise werkzeug.exceptions.Forbidden("Signature mismatch")
 
-    def _parse_notification(self, sub_type,
-                            event) -> twitch_webhook.TwitchWebhookEvent:
+    def _parse_notification(self, sub_type, event) -> TwitchEventSubEvent:
         if sub_type == "stream.online":
             # TODO: The old webhook subscription would provide title and
             #  game information with the event, so we make a separate

@@ -3,7 +3,7 @@ from typing import Optional, Set
 
 import pytz
 
-from impbot.connections import twitch, twitch_webhook
+from impbot.connections import twitch, twitch_eventsub
 from impbot.core import base
 from impbot.handlers import command
 from impbot.util import twitch_util
@@ -44,13 +44,13 @@ class OnCallModHandler(command.CommandHandler):
 
 
 class OnCallModCleanupObserver(
-        base.Observer[twitch_webhook.StreamStartedEvent]):
+        base.Observer[twitch_eventsub.StreamStartedEvent]):
     def __init__(self, on_call_mod_handler: OnCallModHandler):
         super().__init__()
         self.data = on_call_mod_handler.data
         self.twitch_util = on_call_mod_handler.twitch_util
 
-    def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
+    def observe(self, event: twitch_eventsub.StreamStartedEvent) -> None:
         usernames = []
         for key, value in self.data.get_all_values().items():
             if value == today():

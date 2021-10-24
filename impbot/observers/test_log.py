@@ -2,7 +2,7 @@ import io
 import logging
 import unittest
 
-from impbot.connections import twitch_webhook
+from impbot.connections import twitch_eventsub
 from impbot.core import base
 from impbot.observers import log
 
@@ -34,7 +34,7 @@ class LoggingObserverTest(unittest.TestCase):
         self.assertEqual(self.buffer.getvalue(), "[Test] <Alicia> hi there\n")
 
     def testEvent(self):
-        event = twitch_webhook.StreamStartedEvent(
+        event = twitch_eventsub.StreamStartedEvent(
             reply_connection=None, title="Hello world!", game="Just Chatting")
         self.observer.observe(event)
         self.assertEqual(

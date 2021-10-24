@@ -6,7 +6,7 @@ import pytz
 import requests
 
 import secret
-from impbot.connections import twitch_event, timer, twitch, twitch_webhook
+from impbot.connections import twitch_event, timer, twitch, twitch_eventsub
 from impbot.core import base
 from impbot.util import twitch_util
 from impbot.util.twitch_util import OFFLINE
@@ -97,13 +97,13 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
 
 
 class ValePointsCleanupObserver(
-        base.Observer[twitch_webhook.StreamStartedEvent]):
+        base.Observer[twitch_eventsub.StreamStartedEvent]):
     def __init__(self, points_handler: ValePointsHandler):
         super().__init__()
         self.data = points_handler.data
         self.twitch_util = points_handler.twitch_util
 
-    def observe(self, event: twitch_webhook.StreamStartedEvent) -> None:
+    def observe(self, event: twitch_eventsub.StreamStartedEvent) -> None:
         timezone = pytz.timezone("America/Los_Angeles")
         today = str(datetime.datetime.now(tz=timezone).date())
         usernames = []

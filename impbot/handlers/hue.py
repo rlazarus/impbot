@@ -10,8 +10,7 @@ from typing import Optional
 import requests
 
 import secret
-from impbot.connections import twitch_event
-from impbot.connections import twitch_webhook
+from impbot.connections import twitch_event, twitch_eventsub
 from impbot.core import base
 from impbot.core import data
 from impbot.handlers import command
@@ -230,28 +229,28 @@ class TwitchEventBlinkHandler(base.Handler[twitch_event.TwitchEvent]):
 
 
 class TwitchEnableDisableHandler(
-        base.Handler[twitch_webhook.TwitchWebhookEvent]):
+        base.Handler[twitch_eventsub.TwitchEventSubEvent]):
     def __init__(self, hue_client: HueClient) -> None:
         super().__init__()
         self.hue_client = hue_client
 
-    def check(self, event: twitch_webhook.TwitchWebhookEvent) -> bool:
+    def check(self, event: twitch_eventsub.TwitchEventSubEvent) -> bool:
         return True
 
-    def run(self, event: twitch_webhook.TwitchWebhookEvent) -> Optional[str]:
-        if isinstance(event, twitch_webhook.StreamStartedEvent):
+    def run(self, event: twitch_eventsub.TwitchEventSubEvent) -> Optional[str]:
+        if isinstance(event, twitch_eventsub.StreamStartedEvent):
             if self.hue_client.enabled:
                 return None
             self.hue_client.enabled = True
             return "PogChamp PogChamp"
 
-        if isinstance(event, twitch_webhook.StreamEndedEvent):
+        if isinstance(event, twitch_eventsub.StreamEndedEvent):
             if not self.hue_client.enabled:
                 return None
             self.hue_client.enabled = False
             return "\U0001f44b \U0001f44b"  # Waving Hand emoji
 
-        if isinstance(event, twitch_webhook.NewFollowerEvent):
+        if isinstance(event, twitch_eventsub.NewFollowerEvent):
             if self.hue_client.enabled:
                 self.hue_client.blink()
             return None
