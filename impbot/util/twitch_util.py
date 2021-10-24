@@ -265,9 +265,9 @@ class TwitchUtil:
     def get_stream_data(
             self, user_id: Optional[int] = None, username: Optional[str] = None) -> StreamData:
         if user_id:
-            body = self.helix_get('streams', params={'user_id': user_id})
+            body = self.helix_get('streams', {'user_id': user_id})
         elif username:
-            body = self.helix_get('streams', params={'user_login': username})
+            body = self.helix_get('streams', {'user_login': username})
         else:
             raise ValueError('Must pass either user_id or username.')
         if not body['data']:
@@ -290,62 +290,44 @@ class TwitchUtil:
         if not self._sub_count_ttl.fire():
             return self._cached_sub_count
         id = self.get_channel_id(self.streamer_username)
-        response = self.helix_get('subscriptions', params={'broadcaster_id': id, 'first': 1})
+        response = self.helix_get('subscriptions', {'broadcaster_id': id, 'first': 1})
         self._cached_sub_count = response['total']
         return response['total']
 
-    def helix_get(self, path: str, params: Union[Dict[str, Any], List[Tuple[str, Any]]],
+    def helix_get(self, path: str,
+                  params: Optional[Union[Dict[str, Any], List[Tuple[str, Any]]]] = None,
                   token_type: Literal['user', 'app'] = 'user', expected_status: int = 200) -> Dict:
-        request = requests.Request(
-            method='GET', url=f'https://api.twitch.tv/helix/{path}', params=params)
-        return self._request(
-            request, 'Bearer', token_type=token_type, expected_status=expected_status)
+        return self._helix('GET', path, token_type, expected_status, params=params)
 
     def helix_post(self, path: str, json: Dict[str, Any],
                    token_type: Literal['user', 'app'] = 'user', expected_status: int = 200) -> Dict:
-        request = requests.Request(
-            method='POST', url=f'https://api.twitch.tv/helix/{path}', json=json)
-        return self._request(
-            request, 'Bearer', token_type=token_type, expected_status=expected_status)
+        return self._helix('POST', path, token_type, expected_status, json=json)
 
     def helix_patch(self, path: str, params: Dict[str, Any], json: Dict[str, Any],
                     token_type: Literal['user', 'app'] = 'user',
-                    expected_status: int = 200) -> Dict:
-        request = requests.Request(
-            method='PATCH', url=f'https://api.twitch.tv/helix/{path}', params=params, json=json)
-        return self._request(
-            request, 'Bearer', token_type=token_type, expected_status=expected_status)
+                    expected_status: int = 204) -> Dict:
+        return self._helix('PATCH', path, token_type, expected_status, params=params, json=json)
 
-    def kraken_get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict:
-        request = requests.Request(method='GET', url=f'https://api.twitch.tv/kraken/{path}',
-                                   params=params,
-                                   headers={'Accept': 'application/vnd.twitchtv.v5+json'})
-        return self._request(request, 'OAuth')
-
-    def kraken_put(self, path: str, json: Dict[str, Any] = None) -> Dict:
-        request = requests.Request(method='PUT', url=f'https://api.twitch.tv/kraken/{path}',
-                                   json=json,
-                                   headers={'Accept': 'application/vnd.twitchtv.v5+json'})
-        return self._request(request, 'OAuth')
-
-    def _request(self, request, auth_type: str, token_type: Literal['user', 'app'] = 'user',
-                 expected_status: int = 200) -> Dict:
-        request.headers['Client-ID'] = secret.TWITCH_CLIENT_ID
-        if auth_type:
-            token = (self.oauth.access_token if token_type == 'user'
-                     else self.oauth.app_access_token)
-            request.headers.update({'Authorization': f'{auth_type} {token}'})
+    def _helix(self, method: str, path: str, token_type: Literal['user', 'app'],
+               expected_status: int,
+               params: Optional[Union[Dict[str, Any], List[Tuple[str, Any]]]] = None,
+               json: Optional[Dict[str, Any]] = None) -> Dict:
+        token = self.oauth.access_token if token_type == 'user' else self.oauth.app_access_token
+        request = requests.Request(method=method, url=f'https://api.twitch.tv/helix/{path}',
+                                   params=params, json=json, headers={
+                                       'Client-ID': secret.TWITCH_CLIENT_ID,
+                                       'Authorization': f'Bearer {token}',
+                                   })
         with requests.Session() as s:
             response = s.send(request.prepare())
-        if response.status_code == 401 and auth_type:
+        if response.status_code == 401:
             if token_type == 'user':
                 self.oauth.refresh()
                 token = self.oauth.access_token
             else:
                 self.oauth.refresh_app_access_token()
                 token = self.oauth.app_access_token
-            request.headers.update(
-                {'Authorization': f'{auth_type} {token}'})
+            request.headers['Authorization'] = f'Bearer {token}'
             with requests.Session() as s:
                 response = s.send(request.prepare())
         if response.status_code != expected_status:

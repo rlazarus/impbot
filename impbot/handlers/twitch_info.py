@@ -24,9 +24,8 @@ class TwitchInfoHandler(command.CommandHandler):
             from_id = self.twitch_util.get_channel_id(who)
         except KeyError:
             raise base.UserError(f"@{message.user} {who} isn't a Twitch user.")
-        streamer_id = self.twitch_util.get_channel_id(self.streamer_username)
-        body = self.twitch_util.helix_get(
-            'users/follows', {'from_id': from_id, 'to_id': streamer_id})
+        to_id = self.twitch_util.get_channel_id(self.streamer_username)
+        body = self.twitch_util.helix_get('users/follows', {'from_id': from_id, 'to_id': to_id})
         if not body['data']:
             if who.lower() == message.user.name.lower():
                 return f"@{message.user} You aren't following {self.streamer_username}."

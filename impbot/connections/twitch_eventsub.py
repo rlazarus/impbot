@@ -79,7 +79,7 @@ class TwitchEventSubConnection(base.Connection):
         self._shutdown_event.set()
 
     def _ensure_subscribed(self, subs: Iterable[Tuple[str, dict]]) -> None:
-        body = self.twitch_util.helix_get('eventsub/subscriptions', params={}, token_type='app')
+        body = self.twitch_util.helix_get('eventsub/subscriptions', token_type='app')
         for type, condition in subs:
             for sub in body['data']:
                 if sub['type'] != type or sub['condition'] != condition:
