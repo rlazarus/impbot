@@ -6,7 +6,7 @@ import pytz
 import requests
 
 import secret
-from impbot.connections import timer, twitch, twitch_event, twitch_eventsub
+from impbot.connections import timer, twitch, twitch_eventsub
 from impbot.core import base
 from impbot.util import twitch_util
 from impbot.util.twitch_util import OFFLINE
@@ -16,7 +16,7 @@ DURATION = datetime.timedelta(minutes=2)
 REDEEMED_BETWEEN_STREAMS = 'REDEEMED_BETWEEN_STREAMS'
 
 
-class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
+class ValePointsHandler(base.Handler[twitch_eventsub.PointsRewardRedemption]):
     def __init__(self, twitch_conn: twitch.TwitchChatConnection, timer_conn: timer.TimerConnection,
                  util: twitch_util.TwitchUtil):
         super().__init__()
@@ -25,11 +25,11 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
         self.timer: Optional[timer.Timer] = None
         self.twitch_util = util
 
-    def check(self, event: twitch_event.PointsReward) -> bool:
+    def check(self, event: twitch_eventsub.PointsRewardRedemption) -> bool:
         return event.reward_title.startswith(
             ('Emote only mode', 'VIP for the day', 'Movie night pass', 'Extra Hello with'))
 
-    def run(self, event: twitch_event.PointsReward) -> Optional[str]:
+    def run(self, event: twitch_eventsub.PointsRewardRedemption) -> Optional[str]:
         if event.reward_title.startswith('Emote only mode'):
             return self.emote_only(event)
         elif event.reward_title.startswith('VIP for the day'):
@@ -41,7 +41,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
         else:
             return None
 
-    def emote_only(self, event: twitch_event.PointsReward) -> str:
+    def emote_only(self, event: twitch_eventsub.PointsRewardRedemption) -> str:
         if not self.timer or not self.timer.active():
             self.twitch_conn.command('.emoteonly')
             self.timer = self.timer_conn.start_once(
@@ -53,7 +53,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             return (f'{event.user} redeemed emote-only mode for ANOTHER two minutes! '
                     f'{time_left.seconds // 60}:{time_left.seconds % 60:02} left now! valePanic')
 
-    def vip(self, event: twitch_event.PointsReward) -> str:
+    def vip(self, event: twitch_eventsub.PointsRewardRedemption) -> str:
         if self.data.exists(event.user.name):
             return f'@{event.user} What, again? valeThink'
         self.twitch_util.vip(event.user.name)
@@ -68,7 +68,7 @@ class ValePointsHandler(base.Handler[twitch_event.PointsReward]):
             return (f"{event.user} redeemed VIP for the Day! valeJoy (You'll have it for the next "
                     "stream.)")
 
-    def movie_night(self, event: twitch_event.PointsReward) -> str:
+    def movie_night(self, event: twitch_eventsub.PointsRewardRedemption) -> str:
         uid = self.twitch_util.get_channel_id(event.user.name)
         url = f'https://valestream.fatalsyntax.com/api/twitch_token/{uid}'
         response = requests.post(url, headers={

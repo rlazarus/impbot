@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+import impbot.connections.twitch_eventsub
 from impbot.connections import twitch_event
 from impbot.core import base, web
 from impbot.util import cooldown
@@ -12,16 +13,16 @@ MAX_ENTRIES = 10
 END_TIME = datetime(2020, 1, 16, 2)
 
 
-class PointsGiveawayHandler(base.Handler[twitch_event.PointsReward]):
+class PointsGiveawayHandler(base.Handler[impbot.connections.twitch_eventsub.PointsRewardRedemption]):
 
     def __init__(self) -> None:
         super().__init__()
         self.error_cooldown = cooldown.Cooldown(timedelta(seconds=30))
 
-    def check(self, event: twitch_event.PointsReward) -> bool:
+    def check(self, event: impbot.connections.twitch_eventsub.PointsRewardRedemption) -> bool:
         return 'giveaway' in event.reward_title.lower()
 
-    def run(self, event: twitch_event.PointsReward) -> Optional[str]:
+    def run(self, event: impbot.connections.twitch_eventsub.PointsRewardRedemption) -> Optional[str]:
         if datetime.now() > END_TIME:
             if self.error_cooldown.fire():
                 raise base.UserError(f"Sorry @{event.user}, it's too late to enter! NotLikeThis")

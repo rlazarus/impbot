@@ -333,7 +333,8 @@ class TwitchUtil:
         if response.status_code != expected_status:
             logger.error(request.prepare())
             logger.error(
-                '%s %s %s %s', request.method, request.url, request.params, request.headers)
+                '%s %s %s %s %s', request.method, request.url, request.params, request.json,
+                request.headers)
             logger.error('%d %s', response.status_code, response.text)
             raise base.ServerError(f'{response.status_code} {response.text}')
         if not response.text:

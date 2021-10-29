@@ -5,13 +5,14 @@ import random
 import string
 import threading
 from datetime import datetime
-from typing import Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, Literal, Optional, Tuple, cast
 
 import attr
 import flask
 import werkzeug.exceptions
 from dateutil.parser import parse
 
+from impbot.connections import twitch
 from impbot.core import base, data, web
 from impbot.core.base import EventCallback
 from impbot.util import twitch_util
@@ -43,6 +44,58 @@ class NewFollowerEvent(TwitchEventSubEvent):
     time: datetime
 
 
+@attr.s(auto_attribs=True)
+class Bits(TwitchEventSubEvent):
+    user: Optional[twitch.TwitchUser]  # None for anonymous events.
+    bits_used: int
+    chat_message: str
+
+
+SubTier = Literal['Tier 1', 'Tier 2', 'Tier 3']
+
+# Mapping from the strings used in the API to human-readable English names.
+SUB_TIERS = cast(Dict[str, SubTier], {
+    '1000': 'Tier 1',
+    '2000': 'Tier 2',
+    '3000': 'Tier 3',
+})
+
+
+@attr.s(auto_attribs=True)
+class Subscription(TwitchEventSubEvent):
+    user: Optional[twitch.TwitchUser]  # None for anonymous events.
+    sub_tier: SubTier
+    is_gift: bool
+
+
+@attr.s(auto_attribs=True)
+class SubscriptionMessage(TwitchEventSubEvent):
+    user: Optional[twitch.TwitchUser]  # None for anonymous events.
+    sub_tier: SubTier
+    cumulative_months: int
+    streak_months: Optional[int]  # None if the user declines to show it.
+    message: str
+
+
+@attr.s(auto_attribs=True)
+class GiftSubscription(TwitchEventSubEvent):
+    # For a TwitchEventSubEvent, `user` is always the user who took some action. For a gift, it's
+    # the donor, not the new subscriber!  TODO: This was a carry-over, consider renaming it.
+    user: Optional[twitch.TwitchUser]  # None for anonymous events.
+    total: int  # The number of subscriptions in the gift.
+    sub_tier: SubTier
+
+
+@attr.s(auto_attribs=True)
+class PointsRewardRedemption(TwitchEventSubEvent):
+    user: Optional[twitch.TwitchUser]  # None for anonymous events.
+    reward_title: str
+    reward_prompt: str
+    cost: int
+    user_input: Optional[str]  # None if the reward doesn't include any.
+    status: Literal['unknown', 'unfulfilled', 'fulfilled', 'canceled']
+
+
 class TwitchEventSubConnection(base.Connection):
     def __init__(self, reply_conn: base.ChatConnection, util: twitch_util.TwitchUtil):
         self.reply_conn = reply_conn
@@ -63,14 +116,11 @@ class TwitchEventSubConnection(base.Connection):
         self._on_event = on_event
         self._startup_event.set()
 
-        id = str(
-            self.twitch_util.get_channel_id(self.twitch_util.streamer_username))
-        self._ensure_subscribed([
-            ('stream.online', {'broadcaster_user_id': id}),
-            ('stream.offline', {'broadcaster_user_id': id}),
-            ('channel.update', {'broadcaster_user_id': id}),
-            ('channel.follow', {'broadcaster_user_id': id}),
-        ])
+        id = str(self.twitch_util.get_channel_id(self.twitch_util.streamer_username))
+        types = ['stream.online', 'stream.offline', 'channel.update', 'channel.follow',
+                 'channel.cheer', 'channel.subscribe', 'channel.subscription.message',
+                 'channel.subscription.gift', 'channel.channel_points_custom_reward_redemption.add']
+        self._ensure_subscribed([(type, {'broadcaster_user_id': id}) for type in types])
 
         # Everything else happens on web requests, so just wait for shutdown.
         self._shutdown_event.wait()
@@ -82,7 +132,7 @@ class TwitchEventSubConnection(base.Connection):
         body = self.twitch_util.helix_get('eventsub/subscriptions', token_type='app')
         for type, condition in subs:
             for sub in body['data']:
-                if sub['type'] != type or sub['condition'] != condition:
+                if not (sub['type'] == type and _condition_matches(sub['condition'], condition)):
                     continue
                 if sub['status'] != 'enabled':
                     logger.warning('Found subscription with status %s, trying to resubscribe: %s',
@@ -163,7 +213,7 @@ class TwitchEventSubConnection(base.Connection):
                          id, timestamp, data, computed_signature.hex(), signature)
             raise werkzeug.exceptions.Forbidden('Signature mismatch')
 
-    def _parse_notification(self, sub_type, event) -> TwitchEventSubEvent:
+    def _parse_notification(self, sub_type: str, event: Dict[str, Any]) -> TwitchEventSubEvent:
         if sub_type == 'stream.online':
             return StreamStartedEvent(self.reply_conn)
 
@@ -177,5 +227,47 @@ class TwitchEventSubConnection(base.Connection):
             return NewFollowerEvent(
                 self.reply_conn, event['user_name'], parse(event['followed_at']))
 
+        if sub_type == 'channel.cheer':
+            return Bits(self.reply_conn, _event_user(event), event['bits'], event['message'])
+
+        if sub_type == 'channel.subscribe':
+            return Subscription(
+                self.reply_conn, _event_user(event), sub_tier=SUB_TIERS[event['tier']],
+                is_gift=event['is_gift'])
+
+        if sub_type == 'channel.subscription.message':
+            return SubscriptionMessage(
+                self.reply_conn, _event_user(event), sub_tier=SUB_TIERS[event['tier']],
+                cumulative_months=event['cumulative_months'], streak_months=event['streak_months'],
+                message=event['message']['text'])
+
+        if sub_type == 'channel.subscription.gift':
+            return GiftSubscription(
+                self.reply_conn, _event_user(event), total=event['total'],
+                sub_tier=SUB_TIERS[event['tier']])
+
+        if sub_type == 'channel.channel_points_custom_reward_redemption.add':
+            return PointsRewardRedemption(
+                self.reply_conn, _event_user(event), reward_title=event['reward']['title'],
+                reward_prompt=event['reward']['prompt'], cost=int(event['reward']['cost']),
+                user_input=event['user_input'] if event['user_input'] else None,
+                status=event['status'])
+
         logger.error('Unexpected event for subscription type %s: %s', sub_type, event)
         raise werkzeug.exceptions.BadRequest
+
+
+def _event_user(event: Dict[str, Any]) -> Optional[twitch.TwitchUser]:
+    if event.get('is_anonymous', False):
+        return None
+    return twitch.TwitchUser(name=event['user_login'], display_name=event['user_name'])
+
+
+def _condition_matches(found: Dict[str, str], expected: Dict[str, str]) -> bool:
+    # Sometimes optional keys are omitted, but Twitch passes them back present, with a '' value.
+    # This function evaluates whether two dicts are equal, ignoring keys absent in one side and
+    # ''-valued on the other.
+    for key in expected.keys() | found.keys():
+        if expected.get(key, '') != found.get(key, ''):
+            return False
+    return True

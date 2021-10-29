@@ -8,7 +8,7 @@ from typing import Optional
 from obswebsocket import requests
 
 from impbot.connections import obs
-from impbot.connections.twitch_event import Bits
+from impbot.connections.twitch_eventsub import Bits
 from impbot.core import base
 
 logger = logging.getLogger(__name__)

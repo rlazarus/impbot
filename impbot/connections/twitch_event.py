@@ -4,7 +4,7 @@ import json
 import logging
 import random
 import threading
-from typing import Any, Dict, Literal, Optional, cast
+from typing import Any, Dict, Optional
 
 import attr
 import websockets
@@ -19,39 +19,6 @@ logger = logging.getLogger(__name__)
 @attr.s(auto_attribs=True)
 class TwitchEvent(base.Event):
     user: Optional[twitch.TwitchUser]  # None for anonymous events.
-
-
-@attr.s(auto_attribs=True)
-class Bits(TwitchEvent):
-    bits_used: int
-    chat_message: str
-
-
-SubPlan = Literal['Twitch Prime', 'Tier 1', 'Tier 2', 'Tier 3']
-
-
-@attr.s(auto_attribs=True)
-class Subscription(TwitchEvent):
-    sub_plan: SubPlan
-    cumulative_months: int
-    streak_months: Optional[int]  # None if the user declines to show it.
-    message: str
-
-
-@attr.s(auto_attribs=True)
-class GiftSubscription(Subscription):
-    # For a TwitchEvent, `username` is always the user who took some action. For a gift, it's the
-    # donor, not the new subscriber!
-    recipient_username: twitch.TwitchUser
-
-
-@attr.s(auto_attribs=True)
-class PointsReward(TwitchEvent):
-    reward_title: str
-    reward_prompt: str
-    cost: int
-    user_input: Optional[str]  # None if the reward doesn't include any.
-    status: Literal['FULFILLED', 'UNFULFILLED']
 
 
 @attr.s(auto_attribs=True)
@@ -140,9 +107,6 @@ class TwitchEventConnection(base.Connection):
             'nonce': nonce,
             'data': {
                 'topics': [
-                    f'channel-bits-events-v2.{channel_id}',
-                    f'channel-points-channel-v1.{channel_id}',
-                    f'channel-subscribe-events-v1.{channel_id}',
                     f'chat_moderator_actions.{channel_id}',
                 ],
                 'auth_token': self.twitch_util.oauth.access_token,
@@ -175,55 +139,31 @@ class TwitchEventConnection(base.Connection):
             raise base.ServerError(body)
         topic = body['data']['topic']
         msg = json.loads(body['data']['message'])
-        if '-bits-' in topic:
-            mdata = msg['data']
-            username = mdata.get('user_name', None)
-            user = self.twitch_user(username) if username else None
-            on_event(Bits(self.reply_conn, user, mdata['bits_used'], mdata['chat_message']))
-        elif '-subscribe-' in topic:
-            if 'recipient_user_name' in msg:
-                username = msg.get('user_name', None)
-                user = self.twitch_user(username) if username else None
-                on_event(GiftSubscription(
-                    self.reply_conn, user, SUB_PLANS[msg['sub_plan']], msg['months'], None,
-                    msg['sub_message']['message'], self.twitch_user(msg['recipient_user_name'])))
-            else:
-                on_event(Subscription(
-                    self.reply_conn, self.twitch_user(msg['user_name']), SUB_PLANS[msg['sub_plan']],
-                    msg['cumulative_months'], msg.get('streak_months', None),
-                    msg['sub_message']['message']))
-        elif '-points-channel-' in topic:
-            redemption = msg['data']['redemption']
-            user = twitch.TwitchUser(
-                redemption['user']['login'], None, redemption['user']['display_name'], None, None)
-            reward = redemption['reward']
-            on_event(PointsReward(
-                self.reply_conn, user, reward['title'], reward['prompt'], reward['cost'],
-                redemption.get('user_input'), redemption['status']))
-        elif '_moderator_actions' in topic:
-            mdata = msg['data']
-            if mdata['moderation_action'] not in {'ban', 'unban', 'timeout', 'untimeout', 'delete'}:
-                logger.info(f'Ignoring mod action {mdata["moderation_action"]}')
-                return
-            user = self.twitch_user(mdata['created_by'], is_moderator=True)
-            if mdata['moderation_action'] == 'ban':
-                [target_username, reason] = mdata['args']
-                on_event(Ban(self.reply_conn, user, self.twitch_user(target_username), reason))
-            elif mdata['moderation_action'] == 'unban':
-                [target_username] = mdata['args']
-                on_event(Unban(self.reply_conn, user, self.twitch_user(target_username)))
-            elif mdata['moderation_action'] == 'timeout':
-                [target_username, duration_sec, reason] = mdata['args']
-                on_event(Timeout(
-                    self.reply_conn, user, self.twitch_user(target_username),
-                    datetime.timedelta(seconds=int(duration_sec)), reason))
-            elif mdata['moderation_action'] == 'untimeout':
-                [target_username] = mdata['args']
-                on_event(Untimeout(self.reply_conn, user, self.twitch_user(target_username)))
-            elif mdata['moderation_action'] == 'delete':
-                [target_username, message_text, message_id] = mdata['args']
-                on_event(
-                    Delete(self.reply_conn, user, self.twitch_user(target_username), message_text))
+        if '_moderator_actions' not in topic:
+            return
+        mdata = msg['data']
+        if mdata['moderation_action'] not in {'ban', 'unban', 'timeout', 'untimeout', 'delete'}:
+            logger.info(f'Ignoring mod action {mdata["moderation_action"]}')
+            return
+        user = self.twitch_user(mdata['created_by'], is_moderator=True)
+        if mdata['moderation_action'] == 'ban':
+            [target_username, reason] = mdata['args']
+            on_event(Ban(self.reply_conn, user, self.twitch_user(target_username), reason))
+        elif mdata['moderation_action'] == 'unban':
+            [target_username] = mdata['args']
+            on_event(Unban(self.reply_conn, user, self.twitch_user(target_username)))
+        elif mdata['moderation_action'] == 'timeout':
+            [target_username, duration_sec, reason] = mdata['args']
+            on_event(Timeout(
+                self.reply_conn, user, self.twitch_user(target_username),
+                datetime.timedelta(seconds=int(duration_sec)), reason))
+        elif mdata['moderation_action'] == 'untimeout':
+            [target_username] = mdata['args']
+            on_event(Untimeout(self.reply_conn, user, self.twitch_user(target_username)))
+        elif mdata['moderation_action'] == 'delete':
+            [target_username, message_text, message_id] = mdata['args']
+            on_event(
+                Delete(self.reply_conn, user, self.twitch_user(target_username), message_text))
 
     def twitch_user(self, username, is_moderator: Optional[bool] = None) -> twitch.TwitchUser:
         return twitch.TwitchUser(
@@ -242,10 +182,3 @@ async def _ping_forever(websocket: websockets.WebSocketCommonProtocol) -> None:
         return
 
 
-# Mapping from the strings used in the API to human-readable English names.
-SUB_PLANS = cast(Dict[str, SubPlan], {
-    'Prime': 'Twitch Prime',
-    '1000': 'Tier 1',
-    '2000': 'Tier 2',
-    '3000': 'Tier 3',
-})
