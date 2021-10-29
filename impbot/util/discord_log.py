@@ -35,4 +35,4 @@ class DiscordLogger:
                                      'User-Agent': 'Impbot',
                                  })
         if response.status_code != 200:
-            logging.error(f'{response.status_code} {response.text}')
+            logger.error('%d %s', response.status_code, response.text)

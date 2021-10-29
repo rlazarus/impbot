@@ -92,7 +92,7 @@ class TwitchOAuth:
                 'Authorization': f'Bearer {access_token}'
             })
         if response.status_code != 200:
-            logging.error(
+            logger.error(
                 "Couldn't fetch user info with new bearer token: %d %s",
                 response.status_code, response.text)
             raise base.ServerError(f'{response.status_code} {response.text}')
@@ -331,9 +331,10 @@ class TwitchUtil:
             with requests.Session() as s:
                 response = s.send(request.prepare())
         if response.status_code != expected_status:
-            logging.error(request.prepare())
-            logging.error(f'{request.method} {request.url} {request.params} {request.headers}')
-            logging.error(f'{response.status_code} {response.text}')
+            logger.error(request.prepare())
+            logger.error(
+                '%s %s %s %s', request.method, request.url, request.params, request.headers)
+            logger.error('%d %s', response.status_code, response.text)
             raise base.ServerError(f'{response.status_code} {response.text}')
         if not response.text:
             return {}

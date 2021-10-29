@@ -141,7 +141,7 @@ class Bot:
                 self.reply(event, str(e))
             except (base.AdminError, base.ServerError) as e:
                 # TODO: Add some kind of direct alerting to the admins, maybe via DMs.
-                logging.exception(e)
+                logger.exception(e)
                 self.reply(event, 'Uh oh!')
             return
 

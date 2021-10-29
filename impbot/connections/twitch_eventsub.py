@@ -85,8 +85,8 @@ class TwitchEventSubConnection(base.Connection):
                 if sub['type'] != type or sub['condition'] != condition:
                     continue
                 if sub['status'] != 'enabled':
-                    logging.warning('Found subscription with status %s, trying to resubscribe: %s',
-                                    sub['status'], sub)
+                    logger.warning('Found subscription with status %s, trying to resubscribe: %s',
+                                   sub['status'], sub)
                     self._subscribe(type, condition)
                 break
             else:
@@ -129,8 +129,8 @@ class TwitchEventSubConnection(base.Connection):
             return body['challenge']
 
         if message_type == 'revocation':
-            logging.error('Subscription revoked (%s): %s %s', body['subscription']['status'],
-                          body['subscription']['type'], body['subscription']['condition'])
+            logger.error('Subscription revoked (%s): %s %s', body['subscription']['status'],
+                         body['subscription']['type'], body['subscription']['condition'])
             return ''
 
         if message_type == 'notification':
@@ -142,10 +142,10 @@ class TwitchEventSubConnection(base.Connection):
 
     def _safe_get_data(self) -> bytes:
         if flask.request.content_length is None:
-            logging.error('No Content-Length header, rejecting')
+            logger.error('No Content-Length header, rejecting')
             raise werkzeug.exceptions.LengthRequired
         if flask.request.content_length > 2 ** 20:
-            logging.error(
+            logger.error(
                 'Content length %d greater than 1 MB, rejecting', flask.request.content_length)
             raise werkzeug.exceptions.RequestEntityTooLarge
         return flask.request.get_data()
@@ -158,9 +158,9 @@ class TwitchEventSubConnection(base.Connection):
         computed_signature = hmac.digest(self._secret.encode(), (id + timestamp).encode() + data,
                                          'sha256')
         if signature != 'sha256=' + computed_signature.hex():
-            logging.error('id: %s\ntimestamp: %s\nbody: %r\n'
-                          'Computed signature sha256=%s,\nreceived signature %s',
-                          id, timestamp, data, computed_signature.hex(), signature)
+            logger.error('id: %s\ntimestamp: %s\nbody: %r\n'
+                         'Computed signature sha256=%s,\nreceived signature %s',
+                         id, timestamp, data, computed_signature.hex(), signature)
             raise werkzeug.exceptions.Forbidden('Signature mismatch')
 
     def _parse_notification(self, sub_type, event) -> TwitchEventSubEvent:
