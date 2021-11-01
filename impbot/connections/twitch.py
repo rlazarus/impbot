@@ -75,7 +75,7 @@ class TwitchChatConnection(irc_conn.IrcConnection):
                     emotes.append((emote_id, int(start), int(end)))
 
         return TwitchMessage(self, user, event.arguments[0], tags.get('id', ''), tags.get('msg-id'),
-                             int(tags.get('user-id')), False, emotes)
+                             int(tags['user-id']), False, emotes)
 
     def _action(self, event: client.Event) -> base.Message:
         message = cast(TwitchMessage, self._message(event))

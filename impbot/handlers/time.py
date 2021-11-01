@@ -30,7 +30,7 @@ class TimeHandler(command.CommandHandler):
         #  of viewers.
 
         start = datetime.datetime.utcnow()
-        ids = self.twitch_util.get_channel_ids(self.chat.all_chatters())
+        ids = (str(id) for id in self.twitch_util.get_channel_ids(self.chat.all_chatters()))
         self.data.increment_subkeys('total_time', ids, INTERVAL_SECONDS)
         if self.data.exists('event_name'):
             self.data.increment_subkeys('event_time', ids, INTERVAL_SECONDS)
@@ -86,7 +86,7 @@ class TimeHandler(command.CommandHandler):
 
     def run_startevent(self, message: base.Message, name: str) -> Optional[str]:
         if not message.user.admin:
-            return
+            return None
         try:
             existing_name = self.data.get('event_name')
             raise base.UserError(
@@ -97,7 +97,7 @@ class TimeHandler(command.CommandHandler):
 
     def run_endevent(self, message: base.Message) -> Optional[str]:
         if not message.user.admin:
-            return
+            return None
         try:
             name = self.data.get('event_name')
         except KeyError:

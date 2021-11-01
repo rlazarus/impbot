@@ -23,8 +23,8 @@ class Cooldown(object):
 class GlobalAndUserCooldowns(object):
     def __init__(self, global_duration: Optional[datetime.timedelta],
                  user_duration: Optional[datetime.timedelta],
-                 global_last_fire: Optional[datetime.timedelta] = None,
-                 user_last_fire: Optional[Dict[base.User, datetime.timedelta]] = None) -> None:
+                 global_last_fire: Optional[datetime.datetime] = None,
+                 user_last_fire: Optional[Dict[base.User, datetime.datetime]] = None) -> None:
         if global_duration is None:
             global_duration = datetime.timedelta(0)
         if user_duration is None:
@@ -34,9 +34,9 @@ class GlobalAndUserCooldowns(object):
             self.global_cd.last_fire = global_last_fire
         self.user_duration = user_duration
         self.user_cds: Dict[base.User, Cooldown] = collections.defaultdict(
-            lambda: Cooldown(user_duration))
+            lambda: Cooldown(self.user_duration))
         if user_last_fire is not None:
-            for user, last_fire in user_last_fire:
+            for user, last_fire in user_last_fire.items():
                 self.user_cds[user].last_fire = last_fire
 
     def peek(self, user: base.User) -> bool:

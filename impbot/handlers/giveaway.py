@@ -30,7 +30,7 @@ class CommandGiveawayHandler(command.CommandHandler):
         if target:
             target = target.lower()
             if target != message.user.name and not (message.user.moderator or message.user.admin):
-                return
+                return None
         else:
             target = message.user.name
 
@@ -48,8 +48,8 @@ class CommandGiveawayHandler(command.CommandHandler):
 
     def run_endgiveaway(self, message: base.Message) -> Optional[str]:
         if not (message.user.moderator or message.user.admin):
-            return
-        self.data.set('_ended', 1)
+            return None
+        self.data.set('_ended', '1')
         return 'No more entries! vale7'
 
     @web.url('/giveaway')

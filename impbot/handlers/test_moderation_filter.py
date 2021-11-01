@@ -38,7 +38,7 @@ class ModerationFilterHandlerTest(tests_util.DataHandlerTest):
         self.assertFalse(self.mod_handler.check(message))
 
     def assert_blocked(self, text: str, user: twitch.TwitchUser = None, action: bool = False,
-                       emotes: List[Tuple[int, int, int]] = None) -> None:
+                       emotes: List[Tuple[str, int, int]] = None) -> None:
         message = self.message(text, user, action, emotes)
         self.assertTrue(self.mod_handler.check(message))
         self.mod_handler.run(message)

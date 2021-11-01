@@ -27,14 +27,14 @@ class OnCallModHandler(command.CommandHandler):
         if msg.user not in self.on_call_mods:
             if msg.user.moderator:
                 return f"@{msg.user} Sorry pal, you signed a blood oath, that's over my head."
-            return
+            return None
         self.data.unset(msg.user.name)
         self.twitch_util.unmod(msg.user.name)
         return f'@{msg.user} valeLove'
 
     def run_modsdosomething(self, msg: base.Message) -> Optional[str]:
         if msg.user.name != self.twitch_util.streamer_username.lower():
-            return
+            return None
         for i in self.on_call_mods:
             self.data.set(i.name, today())
         self.twitch_util.mod([user.name for user in self.on_call_mods])

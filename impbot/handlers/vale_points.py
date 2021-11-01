@@ -22,7 +22,7 @@ class ValePointsHandler(base.Handler[twitch_eventsub.PointsRewardRedemption]):
         super().__init__()
         self.twitch_conn = twitch_conn
         self.timer_conn = timer_conn
-        self.timer: Optional[timer.Timer] = None
+        self.timer: Optional[timer.SingleTimer] = None
         self.twitch_util = util
 
     def check(self, event: twitch_eventsub.PointsRewardRedemption) -> bool:

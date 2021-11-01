@@ -45,7 +45,7 @@ class AnnouncementHandler(command.CommandHandler):
         threading.Timer(wait.total_seconds(), run).start()
 
     def _interval(self) -> timedelta:
-        return timedelta(minutes=int(self.data.get('interval', default=30)))
+        return timedelta(minutes=int(self.data.get('interval', default='30')))
 
     def announce(self):
         data = self.util.get_stream_data(username=self.util.streamer_username)
@@ -60,6 +60,6 @@ class AnnouncementHandler(command.CommandHandler):
 
     def run_setannouncement(self, message: base.Message, text: str) -> Optional[str]:
         if not (message.user.moderator or message.user.admin):
-            return
+            return None
         self.data.set('announcement', text)
         return 'Announcement set!'

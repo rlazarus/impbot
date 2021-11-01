@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from logging import handlers
-from typing import Any, Dict, List, Optional, TypeVar, Union
+from typing import Any, Dict, List, Optional, Sequence, TypeVar, Union
 
 import attr
 
@@ -189,7 +189,7 @@ class Bot:
 T = TypeVar('T')
 
 
-def _flatten(input: List[Union[T, List[T]]]) -> List[T]:
+def _flatten(input: Sequence[Union[T, Sequence[T]]]) -> List[T]:
     output = []
     for i in input:
         if isinstance(i, list):

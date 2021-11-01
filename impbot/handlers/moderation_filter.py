@@ -45,7 +45,7 @@ class PermitHandler(command.CommandHandler):
 
     def run_permit(self, message: base.Message, username: str) -> Optional[str]:
         if not message.user.moderator:
-            return
+            return None
         if username.startswith('@'):
             username = username[1:]
         user = twitch.TwitchUser(username.lower(), display_name=username)
@@ -53,7 +53,7 @@ class PermitHandler(command.CommandHandler):
             return f"@{message.user} That's okay, {user} is always allowed to post links."
         if self.is_permitted(user):
             # We must've already done this just now -- treat it like a cooldown.
-            return
+            return None
         now = datetime.now(timezone.utc)
         self.data.set_subkey('permitted', user.name, str(now))
         return f'{user} is now permitted to post a link in the next 45 seconds.'

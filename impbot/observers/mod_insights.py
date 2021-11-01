@@ -20,9 +20,9 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
     def observe(self, event: twitch.TwitchMessage) -> None:
         user = cast(twitch.TwitchUser, event.user)
         try:
-            seen_name = self.data.get(event.user_id)
+            seen_name = self.data.get(str(event.user_id))
         except KeyError:
-            self.data.set(event.user_id, user.name)
+            self.data.set(str(event.user_id), user.name)
             # Spin off the young-account alert into a new thread, to avoid blocking the rest of this
             # message handling, since we have to call out to the Twitch API for it.
             threading.Thread(name=f'ModInsightsObserver-new_user {user.name}',
@@ -34,7 +34,7 @@ class ModInsightsObserver(base.Observer[twitch.TwitchMessage]):
             self.discord.embed(
                 EMBED_COLOR,
                 f'🔎 **{seen_name} ** changed their Twitch username to **{viewercard}**.')
-            self.data.set(event.user_id, user.name)
+            self.data.set(str(event.user_id), user.name)
 
     def new_user(self, user_id: int, user: twitch.TwitchUser):
         age = self.account_age(user_id)

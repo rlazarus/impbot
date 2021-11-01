@@ -70,16 +70,16 @@ class DiscordModLogObserver(base.Observer[twitch_event.ModAction]):
 
 def humanize(duration: datetime.timedelta) -> str:
     parts = [
-        [duration.days, 'days'],
+        (duration.days, 'days'),
         (duration.seconds // 3600, 'hours'),
         ((duration.seconds % 3600) // 60, 'minutes'),
         (duration.seconds % 60, 'seconds'),
     ]
-    parts = [f'{num} {unit[:-1] if num == 1 else unit}' for num, unit in parts if num]
-    if not parts:
+    string_parts = [f'{num} {unit[:-1] if num == 1 else unit}' for num, unit in parts if num]
+    if not string_parts:
         return '0 seconds'
     else:
-        return ' '.join(parts)
+        return ' '.join(string_parts)
 
 
 def expires(duration: datetime.timedelta) -> str:

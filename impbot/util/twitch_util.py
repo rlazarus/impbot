@@ -31,7 +31,7 @@ class TwitchOAuth:
         #  would consume too much memory. The fix is to make it a FIFO queue instead of (or in
         #  addition to) a hash set -- but frankly there are more effective ways to DoS a chat bot
         #  anyway.
-        self.states = set()
+        self.states: Set[str] = set()
 
     def maybe_authorize(self) -> None:
         """
@@ -313,11 +313,12 @@ class TwitchUtil:
                params: Optional[Union[Dict[str, Any], List[Tuple[str, Any]]]] = None,
                json: Optional[Dict[str, Any]] = None) -> Dict:
         token = self.oauth.access_token if token_type == 'user' else self.oauth.app_access_token
-        request = requests.Request(method=method, url=f'https://api.twitch.tv/helix/{path}',
-                                   params=params, json=json, headers={
-                                       'Client-ID': secret.TWITCH_CLIENT_ID,
-                                       'Authorization': f'Bearer {token}',
-                                   })
+        request = requests.Request(
+            method=method, url=f'https://api.twitch.tv/helix/{path}', params=params, json=json,
+            headers={
+                'Client-ID': secret.TWITCH_CLIENT_ID,
+                'Authorization': f'Bearer {token}',
+            })
         with requests.Session() as s:
             response = s.send(request.prepare())
         if response.status_code == 401:
@@ -372,7 +373,7 @@ class TwitchUtil:
             commands = [commands]
 
         channel = '#' + self.oauth.streamer_username.lower()
-        pubnotices = queue.Queue()
+        pubnotices: queue.Queue[str] = queue.Queue()
         welcome = threading.Event()
 
         def on_welcome(_c: client.ServerConnection, _e: client.Event) -> None:
