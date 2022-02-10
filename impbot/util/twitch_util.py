@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TwitchOAuth:
-    def __init__(self, streamer_username: str):
+    def __init__(self, streamer_username: str, scopes: Optional[List[str]] = None):
         self.streamer_username = streamer_username
         self.data = data.Namespace('impbot.util.twitch_util.TwitchOAuth')
         self.lock = threading.Lock()
@@ -32,6 +32,19 @@ class TwitchOAuth:
         #  addition to) a hash set -- but frankly there are more effective ways to DoS a chat bot
         #  anyway.
         self.states: Set[str] = set()
+        if scopes is not None:
+            self.scopes = scopes
+        else:
+            self.scopes = [
+                'bits:read',  # For TwitchEventConnection
+                'channel:manage:broadcast',  # For TwitchEditorHandler
+                'channel:read:redemptions',  # For TwitchEventConnection
+                'channel:read:subscriptions',  # For TwitchEventConnection
+                'chat:edit',  # For TwitchUtil._irc_command_as_streamer()
+                'chat:read',  # For TwitchUtil._irc_command_as_streamer()
+                'channel:moderate',
+                # TwitchUtil._irc_command_as_streamer() and TwitchEventConnection
+            ]
 
     def maybe_authorize(self) -> None:
         """
@@ -53,22 +66,13 @@ class TwitchOAuth:
         logger.info('Twitch OAuth: Authorized!')
 
     def authorize_url(self) -> str:
-        scopes = [
-            'bits:read',  # For TwitchEventConnection
-            'channel:manage:broadcast',  # For TwitchEditorHandler
-            'channel:read:redemptions',  # For TwitchEventConnection
-            'channel:read:subscriptions',  # For TwitchEventConnection
-            'chat:edit',  # For TwitchUtil._irc_command_as_streamer()
-            'chat:read',  # For TwitchUtil._irc_command_as_streamer()
-            'channel:moderate',  # TwitchUtil._irc_command_as_streamer() and TwitchEventConnection
-        ]
         state = nonce()
         self.states.add(state)
         params = parse.urlencode({
             'client_id': secret.TWITCH_CLIENT_ID,
             'redirect_uri': secret.TWITCH_REDIRECT_URI,
             'response_type': 'code',
-            'scope': ' '.join(scopes),
+            'scope': ' '.join(self.scopes),
             'state': state
         })
         url = f'https://id.twitch.tv/oauth2/authorize?{params}'
