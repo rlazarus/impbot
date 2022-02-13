@@ -60,8 +60,9 @@ class TwitchOAuth:
         #  that service should be the host for the OAuth redirect URI, and should hold the Twitch
         #  client secret. Until then, other installations need to register with Twitch and get their
         #  own client secret.
-        logger.critical('While logged into Twitch as %s, please visit %s', self.streamer_username,
-                        flask.url_for('TwitchOAuthWebHandler.login', _scheme='https'))
+        url = flask.url_for('TwitchOAuthWebHandler.login', _external=True, _scheme='https')
+        logger.critical(
+            'While logged into Twitch as %s, please visit %s', self.streamer_username, url)
         self.auth_finished.wait()
         logger.info('Twitch OAuth: Authorized!')
 

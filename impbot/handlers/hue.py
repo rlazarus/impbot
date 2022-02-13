@@ -5,16 +5,19 @@ import random
 import re
 import string
 from datetime import timedelta
-from typing import Optional
+from pprint import pprint
+from typing import Optional, Set, Tuple, Union
+from urllib import parse
 
+import flask
 import requests
 
 import secret
 from impbot.connections import twitch_event, twitch_eventsub
-from impbot.core import base
+from impbot.core import base, web
 from impbot.core import data
 from impbot.handlers import command
-from impbot.util import cooldown
+from impbot.util import cooldown, twitch_util
 
 logger = logging.getLogger(__name__)
 cache_cd = cooldown.Cooldown(duration=timedelta(minutes=5))
@@ -25,15 +28,15 @@ CONFIG_KEY = '_config'
 
 
 class HueClient:
-    def __init__(self, username: str):
+    def __init__(self):
         self.data = data.Namespace('impbot.handlers.hue.HueClient')
-        self.username = username
 
     def startup(self) -> None:
-        if not (self.data.exists(CONFIG_KEY, 'access_token') and
-                self.data.exists(CONFIG_KEY, 'refresh_token')):
-            # TODO: Add a first-time setup flow. For now, they're set manually.
-            raise base.AdminError('access_token and refresh_token not in DB')
+        if not all(self.data.exists(CONFIG_KEY, subkey)
+                   for subkey in ('access_token', 'refresh_token', 'username')):
+            logger.critical(
+                'Hue access_token, refresh_token, and username not in DB. Please log in with: %s',
+                flask.url_for('HueOAuthWebHandler.oauth_login'))
 
     @property
     def enabled(self) -> bool:
@@ -74,7 +77,8 @@ class HueClient:
         self._action(alert='select')
 
     def _action(self, **body) -> None:
-        response = requests.put(f'https://api.meethue.com/bridge/{self.username}/groups/1/action',
+        username = self.data.get(CONFIG_KEY, 'username')
+        response = requests.put(f'https://api.meethue.com/bridge/{username}/groups/1/action',
                                 json=body,
                                 headers={'Authorization': f'Bearer {self._access_token()}',
                                          'Content-Type': 'application/json'})
@@ -87,7 +91,8 @@ class HueClient:
         if not (cache_cd.fire() or force or not any_scenes):
             return
 
-        response = requests.get(f'https://api.meethue.com/bridge/{self.username}/scenes',
+        username = self.data.get(CONFIG_KEY, 'username')
+        response = requests.get(f'https://api.meethue.com/bridge/{username}/scenes',
                                 headers={'Authorization': f'Bearer {self._access_token()}'})
 
         _log(response)
@@ -107,22 +112,35 @@ class HueClient:
     def _access_token(self) -> str:
         # First, refresh if necessary.
         try:
-            expiration_timestamp = float(
-                self.data.get(CONFIG_KEY, 'access_token_expires'))
+            expiration_timestamp = float(self.data.get(CONFIG_KEY, 'access_token_expires'))
         except KeyError:
             expired = True
         else:
-            expiration = datetime.datetime.fromtimestamp(
-                expiration_timestamp, datetime.timezone.utc)
+            expiration = datetime.datetime.fromtimestamp(expiration_timestamp, datetime.timezone.utc)
             expired = expiration <= datetime.datetime.now(datetime.timezone.utc)
         if expired:
             self._oauth_refresh()
 
         return self.data.get(CONFIG_KEY, 'access_token')
 
-    def _oauth_refresh(self) -> None:
-        path = '/oauth2/refresh'
-        response = requests.post(f'https://api.meethue.com{path}')
+    def _oauth_refresh(self, code: Optional[str] = None) -> None:
+        """
+        For the initial authorization flow, `code` is the authorization code passed via redirect by
+        /v2/oauth2/authorize. After that, to refresh using the refresh token already in the DB,
+        use the default `code=None`.
+        """
+        path = '/v2/oauth2/token'
+        if code is not None:
+            form_data = {
+                'grant_type': 'authorization_code',
+                'code': code
+            }
+        else:
+            form_data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': self.data.get(CONFIG_KEY, 'refresh_token')
+            }
+        response = requests.post(f'https://api.meethue.com{path}', data=form_data)
         _log(response, normal_status=401)
         auth = response.headers['WWW-Authenticate']
         realm_match = re.search('realm="(.*?)"', auth)
@@ -138,15 +156,11 @@ class HueClient:
         digest_response = _md5(f'{h1}:{nonce}:{h2}')
 
         headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
             'Authorization':
                 f'Digest username="{secret.HUE_CLIENT_ID}", realm="{realm}", '
                 f'nonce="{nonce}", uri="{path}", response="{digest_response}"'
         }
-        response = requests.post(f'https://api.meethue.com{path}',
-                                 headers=headers,
-                                 params={'grant_type': 'refresh_token'},
-                                 data={'refresh_token': self.data.get(CONFIG_KEY, 'refresh_token')})
+        response = requests.post(f'https://api.meethue.com{path}', headers=headers, data=form_data)
         _log(response)
         tokens = response.json()
         self.data.set_subkey(CONFIG_KEY, 'access_token', tokens['access_token'])
@@ -154,6 +168,78 @@ class HueClient:
         ttl = datetime.timedelta(seconds=float(tokens['access_token_expires_in']))
         expiration = datetime.datetime.now(datetime.timezone.utc) + ttl
         self.data.set_subkey(CONFIG_KEY, 'access_token_expires', str(expiration.timestamp()))
+
+
+class HueOAuthWebHandler(base.Handler[twitch_util.NullEvent]):
+    # See the comment at twitch_util.TwitchOAuthWebHandler for why there's a NullEvent there.
+
+    def __init__(self, hue_client: HueClient) -> None:
+        super().__init__()
+        self.states: Set[str] = set()
+        self.hue_client = hue_client
+
+    def check(self, event: twitch_util.NullEvent) -> bool:
+        return False
+
+    def run(self, event: twitch_util.NullEvent) -> Optional[str]:
+        pass
+
+    @web.url('/oauth/login/hue')
+    def oauth_login(self):
+        state = twitch_util.nonce()
+        self.states.add(state)
+        query = parse.urlencode({
+            'client_id': secret.HUE_CLIENT_ID,
+            'response_type': 'code',
+            'state': state,
+            # 'redirect_uri': flask.url_for('HueOAuthWebHandler.oauth_redirect', _external=True),
+            # 'deviceid': '####',
+            # 'devicename': '####',
+        })
+        return flask.redirect(f'https://api.meethue.com/v2/oauth2/authorize?{query}')
+
+    @web.url('/oauth/redirect/hue')
+    def oauth_redirect(self):
+        logger.debug('OAuth redirect args: %s', pprint(flask.request.args))
+        try:
+            state = flask.request.args['state']
+        except KeyError:
+            return 'Missing state parameter', 400
+
+        try:
+            self.states.remove(state)
+        except KeyError:
+            logger.error('Expected states %s / got %s', self.states, state)
+            return 'Wrong state parameter', 403
+
+        try:
+            code = flask.request.args['code']
+        except KeyError:
+            return 'Missing code parameter', 400
+
+        self.hue_client._oauth_refresh(code=code)
+
+        response = requests.put(
+            'https://api.meethue.com/route/api/0/config',
+            headers={'Authorization': f'Bearer {self.hue_client._access_token()}'},
+            json={'linkbutton': True})
+        request = response.request
+        logger.debug('%s %s %s %s', request.method, request.url, request.body, request.headers)
+        logger.debug('%d %s', response.status_code, response.text)
+
+        response = requests.post(
+            'https://api.meethue.com/route/api',
+            headers={'Authorization': f'Bearer {self.hue_client._access_token()}'},
+            json={'devicetype': 'impbot'})
+        request = response.request
+        logger.debug('%s %s %s %s', request.method, request.url, request.body, request.headers)
+        json = response.json()
+        logger.debug('%d %s', response.status_code, json)
+        username = json[0]['success']['username']
+        logger.debug('username: %s', username)
+        self.data.set_subkey(CONFIG_KEY, 'username', username)
+
+        return 'Logged in with your Hue account, thanks! You can close the tab now.'
 
 
 class HueHandler(command.CommandHandler):
